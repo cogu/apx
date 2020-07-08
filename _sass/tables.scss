@@ -1,0 +1,65 @@
+//
+// Tables
+//
+// stylelint-disable max-nesting-depth, selector-no-type, selector-max-type
+
+$table-border-color: rgba(0, 0, 0, 255);
+$th-background-color: rgb(185, 185, 185);
+
+table {
+  display: table;
+//  min-width: 100%;
+  border-collapse: separate;
+  border: 1px solid $table-border-color;
+}
+
+th,
+td {
+  @include fs-3;
+  min-width: 120px;
+  padding-top: $sp-2;
+  padding-right: $sp-3;
+  padding-bottom: $sp-2;
+  padding-left: $sp-3;
+  background-color: $table-background-color;
+  border-bottom: $border $table-border-color;
+  border-left: $border $table-border-color;
+
+  &:first-of-type {
+    border-left: 0;
+  }  
+}
+
+tbody {
+  tr {
+    &:last-of-type {
+      th,
+      td {
+        border-bottom: 0;
+      }
+
+      td {
+        padding-bottom: $sp-3;
+      }
+    }
+  }
+}
+
+thead {
+  th {
+    border-bottom: $border $table-border-color;
+    background-color: $th-background-color;
+  }
+}
+
+thead th.c-apx {
+  background-color: $red-100;
+}
+
+thead th.qt-apx {
+  background-color: $green-100;
+}
+
+thead th.py-apx {
+  background-color: $blue-100;
+}
