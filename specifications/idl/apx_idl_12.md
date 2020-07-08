@@ -13,7 +13,7 @@ nav_order: 1
 This is the specification for the APX Interface Definition Language (IDL) v1.2.
 
 ## Table of contents
-{: .no_toc .toc-text }
+{: .no_toc .text-delta }
 
 1. TOC
 {:toc}

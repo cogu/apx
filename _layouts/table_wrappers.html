@@ -2,6 +2,6 @@
 layout: vendor/compress
 ---
 
-<!-- cogu 2020-05-05: We opt out of table wrappers since it makes tables harder to read -->
-
-{{ content }}
+{% assign content_ = content | replace: '<table', '<div class="table-wrapper"><table' %}
+{% assign content_ = content_ | replace: '</table>', '</table></div>' %}
+{{ content_ }}

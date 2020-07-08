@@ -11,7 +11,7 @@ has_children: false
 {: .no_toc }
 
 ## Table of contents
-{: .no_toc .toc-text }
+{: .no_toc .text-delta }
 
 1. TOC
 {:toc}
@@ -23,7 +23,7 @@ In the automotive industry it's common practice to use some form of *component-b
 A software component encapsulates a related set of functions and/or data. The component commmunicates with the outside world exclusively using *ports*.
 The ports are a part of the component and represents its interface. In AUTOSAR, this is called the *Port Interface*.
 
-![Software Component](/images/SoftwareComponent.png)
+![Software Component](/apx/images/SoftwareComponent.png)
 
 ## Types of Ports
 

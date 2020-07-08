@@ -1,6 +1,8 @@
 ---
 layout: default
 title: Home
+permalink: /
+nav_order: 1
 ---
 
 # APX
@@ -10,12 +12,12 @@ It is a collection of free and open source projects intended for automotive soft
 
 ## Learn More
 
-- [Introduction to APX](/introduction)
+- [Introduction to APX](/apx/introduction)
 
 ## Subprojects
 
 
-[APX C Docs][90]{: .btn .btn-red }
+[APX C Docs][90]{: .btn .btn-purple }
 [APX Qt 5 Docs][91]{: .btn .btn-green }
 [APX Python Docs][92]{: .btn .btn-blue }
 

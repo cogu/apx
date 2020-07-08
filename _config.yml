@@ -23,12 +23,14 @@ title: APX Docs
 description: >- # this means to ignore newlines until "baseurl:"
   APX Documentation Project
 
-baseurl: "" # the subpath of your site, e.g. /blog
-url: "" # the base hostname & protocol for your site, e.g. http://example.com
+baseurl: "/apx" # the subpath of your site, e.g. /blog
+url: "https://cogu.github.io" # the base hostname & protocol for your site, e.g. http://example.com
 github_username: cogu
 
+permalink: pretty
+
 # Build settings
-theme: just-the-docs
+# theme: just-the-docs
 #theme: jekyll-theme-tactile
 #plugins:
 #  - jekyll-feed
@@ -41,6 +43,17 @@ theme: just-the-docs
 # Excluded items can be processed by explicitly listing the directories or
 # their entries' file path in the `include:` list.
 #
+
+# Set the Sass partials directory, as we're using @imports
+sass:
+  style: :expanded # You might prefer to minify using :compressed
+
+# Use the following plug-ins
+plugins:
+  - jekyll-sitemap # Create a sitemap using the official Jekyll sitemap gem
+#  - jekyll-feed # Create an Atom feed using the official Jekyll feed gem
+
+
 exclude:
   - .sass-cache/
   - .jekyll-cache/
