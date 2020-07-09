@@ -12,6 +12,6 @@ nav_order: 1
 
 ## Apps
 
-- [apx_control](/implementations/c/apx_control)
-- [apx_node](/implementations/c/apx_node)
-- [apx_server](/implementations/c/apx_server)
+- [apx_control](/apx/implementations/c/apx_control)
+- [apx_node](/apx/implementations/c/apx_node)
+- [apx_server](/apx/implementations/c/apx_server)

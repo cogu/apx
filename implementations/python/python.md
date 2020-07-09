@@ -10,4 +10,4 @@ nav_order: 3
 
 # APX for Python
 
-[Python API Reference](/implementations/python_api)
+[Python API Reference](/apx/implementations/python_api)

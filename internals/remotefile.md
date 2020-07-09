@@ -21,7 +21,7 @@ synch at all times.
 
 In order to describe how this work we will introduce some new terms. First, the two sides of a bidirectional connection is called End-Points. In this text, we will use the terms *End-Point A* and End-Point B* to differentiate between the two.
 
-![Connection End-Points](/images/RemoteFile_EndPoints.png)
+![Connection End-Points](/apx/images/RemoteFile_EndPoints.png)
 
 ## Files
 
@@ -41,7 +41,7 @@ mean the definition seen above.
 Both connection end-points continously maintain two 1GB memory maps. One is used for locally created files while the other is used for remotely created files.
 All events that takes place in the local memory map at one end-point is synched to the remote memory map at the other end-point.
 
-![Empty Memory Map](/images/RemoteFile_Empty.png)
+![Empty Memory Map](/apx/images/RemoteFile_Empty.png)
 
 The memory maps are obviously virtual memory only. otherwise we couldn't be using this technique on small embedded devices as was originally intended.
 Remember that the files created in the map needs to be fully contigous (containing no memory holes), however, it is important to allow memory holes *between* the files.
@@ -144,4 +144,4 @@ In the example seen below we have two files.
 - **Foo.txt**: owned by end-point A, mirrored to end-point B.
 - **Bar.txt**: owned by end-point B, mirrored to end-point A.
 
-![File Synchronization Example](/images/RemoteFile_Sync.png)
+![File Synchronization Example](/apx/images/RemoteFile_Sync.png)

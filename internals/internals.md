@@ -13,4 +13,4 @@ This section contains technical information about how APX works. The information
 
 ## Articles
 
-- [The RemoteFile Protocol](/internals/remotefile)
+- [The RemoteFile Protocol](/apx/internals/remotefile)

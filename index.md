@@ -17,7 +17,7 @@ It is a collection of free and open source projects intended for automotive soft
 ## Subprojects
 
 
-[APX C Docs][90]{: .btn .btn-purple }
+[APX C Docs][90]{: .btn .btn-red }
 [APX Qt 5 Docs][91]{: .btn .btn-green }
 [APX Python Docs][92]{: .btn .btn-blue }
 
@@ -51,9 +51,9 @@ It is a collection of free and open source projects intended for automotive soft
 [23]: https://github.com/cogu/cfile
 [30]: https://github.com/fousk/cs-apx
 [40]: https://github.com/cogu/xl-apx
-[90]: /implementations/c
-[91]: /implementations/qt5
-[92]: /implementations/python
+[90]: /apx/implementations/c
+[91]: /apx/implementations/qt5
+[92]: /apx/implementations/python
 [93]: https://autosar.readthedocs.io
 
 ## Implementation Matrix
