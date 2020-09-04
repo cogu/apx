@@ -9,4 +9,4 @@ nav_order: 2
 ---
 
 * [NumHeader](/apx/specification/protocol/numheader)
-* [RemoteFile](/apx/specification/protocol/remotefile)
+* [RemoteFile v1.0](/apx/specification/protocol/remotefile)
