@@ -1,6 +1,6 @@
 ---
 layout: default
-title: RemoteFile
+title: RemoteFile v1.0
 permalink: /specification/protocol/remotefile
 parent: Protocols
 grand_parent: Specifications
@@ -76,11 +76,42 @@ Since RemoteFile is designed to be used on any communication link it does not of
 In case you are communicating over a socket (or other stream-based communication) you can use [NumHeader](/apx/specification/protocol/numheader) as the message header protocol.
 If you plan to use RemoteFile on TCP then NumHeader32 is the recommended choice.
 
-## Data Write Message
+## RemoteFile Greeting Header
 
-The only allowed operation is writing data into remote memory.
+The very first message a client sends to server is the greeting. It's similar in concept to the HTTP header.
+It consists of a single message (see above) where the payload is a multi-line text string. (This is the only text message defined in the protocol.)
 
-Each write message contains two parts:
+The first line of the message is:
+
+`RMFP/1.0\n`
+
+After the first line, a set of key-value attributes can be set by the client (Similar to MIME-headers)
+Each line of the message ends with a single newline character (unlike TCP which uses `\r\n`).
+In addition, the message must end with a single new-line character.
+
+**Example:**
+
+`RMFP/1.0\n\n`
+
+The total length of the header message must not be longer than 127 bytes. This is because the short-form of both NumHeader16 and NumHeader32 are
+identical. This means the the message header (message size) can be a single byte in both cases.
+What NumHeader format is actually used by the client is specified in the greeting header.
+
+### Greeting attributes
+
+#### NumHeader Attribute
+
+The NumHeader attribute specifies if 16-bit or 32-bit header is being used on consecutive messages from the client.
+
+**Example:**
+
+`RMFP/1.0\nNumHeader: 32\n\n`
+
+## Binary Messages
+
+After the greeting header is sent/received, the only allowed operation is writing data into remote memory using binary messages.
+
+Each write message contains two parts (of the message payload):
 
 1. Address Header (integer)
 2. Data Buffer (byte-array)
@@ -258,3 +289,183 @@ Upper application layers should not be notified until an entire write operation 
 | 5    | RemoteFile     | Address Header       |
 | 6    | RemoteFile     | Address Header       |
 | 7    | RemoteFile     | Address Header (LSB) |
+
+## The Control Area
+
+The last 1KB (1024 bytes) of the 1GB address range is a special control area. Writing data here means you are sending control commands
+to the remote side (the owner of that memory area). The memory range of this area is `0x3FFFFC00 - 0x3FFFFFFF`.
+
+This special control area is used for:
+
+* Creating and revoking files.
+* Opening and closing files.
+
+## Control Commands
+
+The start address is always `0x3FFFFC00` which is the first byte of the area. The format and length of each control command is found below.
+Note that the length of any command must never exceed 1024 bytes.
+
+In this version of the protocol most integers are encoded as little endian (will be more generic in a future version).
+When an integer is encoded as little endian the type ends with the letters "LE".
+As an example, the designation `U32LE` means unsigned 32-bit integer encoded as little endian.
+
+### CmdType
+
+The command type is a 32-bit unsigned integer which uniquely identifes what type of command has been encoded.
+
+| CmdType                | Value |
+|:-----------------------|:------|
+| RMF_CMD_ACK            | 0     |
+| RMF_CMD_NACK           | 1     |
+| *Reserved*             | 2     |
+| RMF_CMD_FILE_INFO      | 3     |
+| RMF_CMD_REVOKE_FILE    | 4     |
+| RMF_CMD_HEARTBEAT_RQST | 5     |
+| RMF_CMD_HEARTBEAT_RSP  | 6     |
+| RMF_CMD_PING_RQST      | 7     |
+| RMF_CMD_PING_RSP       | 8     |
+| *Reserved*             | 9     |
+| RMF_CMD_FILE_OPEN      | 10    |
+| RMF_CMD_FILE_CLOSE     | 11    |
+
+### Acknowledge Command
+
+The acknowledge command can be used as a response to previously received command.
+
+| Offset | Name     | Encoding | Value        | Description  |
+|:-------|:---------|:---------|:-------------|:-------------|
+| 0      | CmdType  | U32LE    | RMF_CMD_ACK  | Command Type |
+
+### Negative Acknowledge Command
+
+The negative acknowledge command can be used as a response to previously received command.
+
+| Offset | Name     | Encoding | Value         | Description  |
+|:-------|:---------|:---------|:--------------|:-------------|
+| 0      | CmdType  | U32LE    | RMF_CMD_NACK  | Command Type |
+
+### FileInfo Command
+
+Both sides of the communication link sends zero or more FileInfo commands (one per file) informing the other side which files it currently has available (mapped into memory). The length of the struct is 48 bytes + the length of the file name which is the last part of the struct.
+
+Since the longest message that can be sent to the special file area is 1024 bytes, the longest possible file name is 975 bytes (1 byte reserved for the null terminator).
+
+| Offset | Name         | Encoding | Value              | Description                           |
+|:-------|:-------------|:---------|:-------------------|:--------------------------------------|
+| 0      | CmdType      | U32LE    | RMF_CMD_FILE_INFO  | Command Type                          |
+| 4      | StartAddress | U32LE    | 0..(2^30)-1025     | Start Address of file                 |
+| 8      | FileSize     | U32LE    | 0-2^30-1024        | Maximum size of file                  |
+| 12     | FileType     | U16LE    | 0-2                | Type of file, see below               |
+| 14     | DigestType   | U16LE    | 0-2                | Type of checksum, see below           |
+| 16     | DigestData   | U8[32]   | 0-255              | Placeholder array for checksum        |
+| 48     | FileName     | String   | `[0-9a-zA-Z_]+`    | File name as a null-terminated string |
+
+#### FileType
+
+| Value | Meaning                     |
+|:------|:----------------------------|
+| 0     | FixedFile (default)         |
+| 1     | DynamicFile                 |
+| 2     | FileStream                  |
+
+#### DigestType
+
+| Value | Meaning                              |
+|:------|:-------------------------------------|
+| 0     | NoDigest                             |
+| 1     | SHA-1 (as generated by sha1sum)      |
+| 2     | SHA-256 (as generated by sha256sum)  |
+
+**Example:**
+
+| Offset | Name         | Value             | Serialized Data      |
+|:-------|:-------------|:------------------|:---------------------|
+| 0      | CmdType      | RMF_CMD_FILE_INFO | `"\x03\x00\x00\x00"` |
+| 4      | StartAddress | 0x10000           | `"\x00\x00\x01\x00"` |
+| 8      | FileSize     | 1000              | `"\xe8\x03\x00\x00"` |
+| 12     | FileType     | FixedFile         | `"\x00\x00"`         |
+| 14     | DigestType   | NoDigest          | `"\x00\x00"`         |
+| 16     | DigestData   | [0, 0, ..., 0]    | `"\x00\x00..\x00"`   |
+| 48     | FileName     | "File1.txt"       | `"File1.txt\0"`      |
+
+
+#### Multiple FileInfo structs
+
+It's allowed to send multiple FileInfo structs in a single control command (as long as the 1024 limit is not exceeded).
+In this case, only the first struct holds the CmdType field meaning that StartAddress of the next file is found right after the null-terminator of the file name of previous file.
+
+Note that support for multiple FileInfos is not yet implemented in [c-apx](https://github.com/cogu/c-apx) as of v0.3.0.
+
+### FileRevoke Command
+
+The file revoke command is the opposite of FileInfo. It unmaps the file from the memory map. If remote side had the file open it's automatically closed.
+
+| Offset | Name          | Encoding | Value           | Description                                         |
+|:-------|:--------------|:---------|:----------------|:----------------------------------------------------|
+| 0      | CmdType       | U32LE    | RMF_CMD_NACK    | Command Type                                        |
+| 4      | StartAddress  | U32LE    | 0..(2^30)-1025  | File Address (from previously sent FileInfo struct) |
+
+### Heartbeat Commands
+
+A client can check if the underlying connection (e.g. socket) is alive by sending a heartbeat request to server.
+The server then replies back with a heartbeat response.
+
+**Request:**
+
+| Offset | Name     | Encoding | Value                   | Description  |
+|:-------|:---------|:---------|:------------------------|:-------------|
+| 0      | CmdType  | U32LE    | RMF_CMD_HEARTBEAT_RQST  | Command Type |
+
+
+**Response:**
+
+| Offset | Name     | Encoding | Value                  | Description  |
+|:-------|:---------|:---------|:-----------------------|:-------------|
+| 0      | CmdType  | U32LE    | RMF_CMD_HEARTBEAT_RSP  | Command Type |
+
+
+### Ping Commands
+
+A ping command is a more sophisticated form of heartbeat. The initator takes a timestamp which is sent in request.
+The same timestamp is echoed back in the response. In addition, a specific (memory mapped) file can be picked
+as the target of the ping. This can be used in a future implementation to relay pings from client to client.
+Use the special file address 0xFFFFFFFF if you don't want to target a specific file.
+
+**Request:**
+
+| Offset | Name              | Encoding | Value             | Description            |
+|:-------|:------------------|:---------|:------------------|:-----------------------|
+| 0      | CmdType           | U32LE    | RMF_CMD_PING_RQST | Command Type           |
+| 4      | StartAddress      | U32LE    | 0..(2^30)-1025    | File Address           |
+| 8      | TimeStampSec      | U32LE    | 0..2^32-1         | Timestamp seconds      |
+| 12     | TimeStampMilliSec | U32LE    | 0..2^32-1         | Timestamp milliseconds |
+
+**Response:**
+
+| Offset | Name              | Encoding | Value             | Description            |
+|:-------|:------------------|:---------|:------------------|:-----------------------|
+| 0      | CmdType           | U32LE    | RMF_CMD_PING_RSP  | Command Type           |
+| 4      | StartAddress      | U32LE    | 0..(2^30)-1025    | File Address           |
+| 8      | TimeStampSec      | U32LE    | 0..2^32-1         | Timestamp seconds      |
+| 12     | TimeStampMilliSec | U32LE    | 0..2^32-1         | Timestamp milliseconds |
+
+### File Open/Close Commands
+
+After a FileInfo struct has been received you can choose to open the file by sending back a file open command.
+The file to open is identified by the start address from previously received FileInfo.
+
+**FileOpen:**
+
+| Offset | Name          | Encoding | Value             | Description       |
+|:-------|:--------------|:---------|:------------------|:------------------|
+| 0      | CmdType       | U32LE    | RMF_CMD_FILE_OPEN | Command Type      |
+| 4      | StartAddress  | U32LE    | 0..(2^30)-1025    | File Address      |
+
+**FileClose:**
+
+| Offset | Name          | Encoding | Value              | Description       |
+|:-------|:--------------|:---------|:-------------------|:------------------|
+| 0      | CmdType       | U32LE    | RMF_CMD_FILE_CLOSE | Command Type      |
+| 4      | StartAddress  | U32LE    | 0..(2^30)-1025     | File Address      |
+
+It's an illegal operation to open/close a file before corresponding FileInfo struct has been received.
