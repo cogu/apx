@@ -10,5 +10,5 @@ nav_order: 3
 
 # APX Virtual Machine
 
-- APX VM1
-- [APX VM2](/apx/specification/vm/vm2)
+- APX VM 1.0
+- [APX VM 2.0 (draft)](/apx/specification/vm/vm2)
