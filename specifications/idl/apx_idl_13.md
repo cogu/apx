@@ -1,22 +1,6 @@
----
-layout: default
-title: APX IDL v1.3
-permalink: /specification/idl/apx_idl_13
-parent: APX IDL
-grand_parent: Specifications
-nav_order: 2
----
-
 # APX IDL v1.3
-{: .no_toc }
 
-This is the draft specification for the APX Interface Definition Language (IDL) v1.3.
-
-## Table of contents
-{: .no_toc .text-delta }
-
-1. TOC
-{:toc}
+This is the specification for the APX Interface Definition Language (IDL) v1.3.
 
 ## New features in APX IDL v1.3
 
@@ -163,7 +147,7 @@ N"MyNode"
 
 A type declaration statement creates a new named type that can be referenced later by [port declarations](#port-declarations) or by other type declarations.
 
-**'T'**{:.label .label-blue} **Name**{:.label .label-green} **Data-Signature**{:.label .label-red}
+{bdg-primary}`'T'` {bdg-success}`Name` {bdg-danger}`Data-Signature`
 
 **Example:**
 
@@ -174,7 +158,7 @@ T"VehicleSpeed_T"S
 
 You can also include an optional type attribute section separated by a `:` character:
 
-**'T'**{:.label .label-blue} **Name**{:.label .label-green} **Data-Signature**{:.label .label-red} **':'**{:.label .label-blue} **Type-Attribute**{:.label .label-purple}
+{bdg-primary}`'T'` {bdg-success}`Name` {bdg-danger}`Data-Signature` {bdg-secondary}`:` {bdg-info}`Type-Attribute`
 
 **Example:**
 
@@ -394,7 +378,7 @@ There are two types of ports in APX:
 
 A Require-port declaration starts with capital letter `R` followed by its name and data signature:
 
-**'R'**{:.label .label-blue} **Name**{:.label .label-green} **Data-Signature**{:.label .label-red}
+{bdg-primary}`'R'` {bdg-success}`Name` {bdg-danger}`Data-Signature`
 
 ```yaml
 # Require-port "VehicleSpeed" with data type uint16
@@ -407,7 +391,7 @@ R"EngineSpeed"T["EngineSpeed_T"]
 
 Optional port attributes are appended after a colon `:` separator:
 
-**'R'**{:.label .label-blue} **Name**{:.label .label-green} **Data-Signature**{:.label .label-red} **':'**{:.label .label-blue} **Port-Attributes**{:.label .label-purple}
+{bdg-primary}`'R'` {bdg-success}`Name` {bdg-danger}`Data-Signature` {bdg-secondary}`:` {bdg-info}`Port-Attributes`
 
 ```yaml
 # Require-port with init-value
@@ -418,7 +402,7 @@ R"VehicleSpeed"S:=65535
 
 A Provide-port declaration starts with capital letter `P` followed by its name and data signature:
 
-**'P'**{:.label .label-blue} **Name**{:.label .label-green} **Data-Signature**{:.label .label-red}
+{bdg-primary}`'P'` {bdg-success}`Name` {bdg-danger}`Data-Signature`
 
 ```yaml
 # Provide-port "VehicleSpeed" with data type uint16

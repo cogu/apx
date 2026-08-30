@@ -1,5 +1,4 @@
-_site/
-.sass-cache/
-.jekyll-cache/
-.jekyll-metadata
-slask/
+.venv/
+_build/
+build/
+__pycache__/

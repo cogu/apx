@@ -1,12 +1,14 @@
----
-layout: default
-title: Protocols
-permalink: /specification/protocol
-parent: Specifications
-has_children: true
-has_toc: false
-nav_order: 2
----
+# Protocols
 
-* [NumHeader](/apx/specification/protocol/numheader)
-* [RemoteFile v1.0](/apx/specification/protocol/remotefile)
+```{toctree}
+:maxdepth: 1
+:hidden:
+
+numheader
+remotefile
+```
+
+## Transport Protocols
+
+* [NumHeader](numheader.md)
+* [RemoteFile v1.0](remotefile.md)

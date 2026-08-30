@@ -1,166 +1,124 @@
----
-layout: default
-title: NumHeader
-permalink: /specification/protocol/numheader
-parent: Protocols
-grand_parent: Specifications
-has_toc: false
-nav_order: 1
----
-
 # NumHeader
 
-NumHeader encodes an integer in big endian, or network byte order. This integer is used as the message length (the message header).
-The integer is parsed first, which tells you how many bytes the rest of the message is (message length). The message payload directly follows the
-message length.
+NumHeader encodes an integer in Big-Endian (network byte order). This integer is used as the message header to specify the length of the message payload that directly follows it.
 
-NumHeader comes in two versions: *NumHeader16* and *NumHeader32*. The former uses 1 ot 2 bytes to encode the integer while the latter uses
-1 or 4 bytes.
+NumHeader comes in two variants:
+- **NumHeader16**: Uses 1 byte (short form) or 2 bytes (long form). Encodes lengths in the range `0`–`32,895`.
+- **NumHeader32**: Uses 1 byte (short form) or 4 bytes (long form). Encodes lengths in the range `0`–`2,147,483,647`.
 
-The most significant bit of the first byte is called the LONG_BIT. When the bit is set it uses long form (2 or 4 bytes), when the bit is 0 it uses short form (1 byte).
+The most significant bit (bit 7) of the first byte is called the **LONG_BIT**:
+- `LONG_BIT = 0`: **Short form** (1 byte header)
+- `LONG_BIT = 1`: **Long form** (2 or 4 byte header)
+
+---
 
 ## NumHeader16
 
-NumHeader16 uses 1 byte in short form and 2 bytes in long form. It can encode integers in the range 0-32895.
+NumHeader16 uses 1 byte in short form and 2 bytes in long form. It encodes integers in the range `0`–`32,895`.
 
-**NumHeader16 - short form (0-127)**:
+### Short Form (0 – 127)
 
-<table>
-  <thead>
-    <tr>
-      <th colspan="2">Byte 0</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>BIT 7</td>
-      <td>BITS 6-0</td>
-    </tr>
-    <tr>
-      <td>LONG_BIT</td>
-      <td>VALUE</td>
-    </tr>
-    <tr>
-      <td>0</td>
-      <td>0-127</td>
-    </tr>
-  </tbody>
-</table>
+```text
++-------+-----------------------+
+| Bit 7 |       Bits 6-0        |
++-------+-----------------------+
+|   0   |    Length (0 - 127)   |
++-------+-----------------------+
+    ^
+    +-- LONG_BIT = 0
+```
 
-**NumHeader16 - longform form (128-32895)**:
+| Field | Bits | Value | Description |
+|:---|:---|:---|:---|
+| **LONG_BIT** | Byte 0, Bit 7 | `0` | Specifies 1-byte short form |
+| **Length** | Byte 0, Bits 6–0 | `0`–`127` | Direct message length in bytes |
 
-<table>
-  <thead>
-    <tr>
-      <th colspan="2">Byte 0</th>
-      <th colspan="1">Byte 1</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>BIT 7</td>
-      <td>BITS 6-0</td>
-      <td>BITS 7-0</td>
-    </tr>
-    <tr>
-      <td colspan="1">LONG_BIT</td>
-      <td colspan="2">VALUE</td>
-    </tr>
-    <tr>
-      <td colspan="1">1</td>
-      <td colspan="2">0-32767</td>
-    </tr>
-  </tbody>
-</table>
+### Long Form (128 – 32,895)
 
----
-**NOTE**
+```text
++-------------------------------+-------------------------------+
+|             Byte 0            |             Byte 1            |
++-------+-----------------------+-------------------------------+
+| Bit 7 |       Bits 6-0        |            Bits 7-0           |
++-------+-----------------------+-------------------------------+
+|   1   |      Value (MSB)      |          Value (LSB)          |
++-------+-----------------------+-------------------------------+
+    ^   \_______________________________________________________/
+    |                               |
+LONG_BIT = 1               15-bit Value (0 - 32,767)
+```
 
-When LONG_BIT is 1:
-- Value range 128-32767 is treated normally as ```y = x```.
-- Value range 0-127 is interpreted as ```y = 32768+x``` where x is the value.
-- Value is encoded as big endian.
+| Field | Bits | Encoded Value | Decoded Length |
+|:---|:---|:---|:---|
+| **LONG_BIT** | Byte 0, Bit 7 | `1` | Specifies 2-byte long form |
+| **Value** | Byte 0 (Bits 6–0) + Byte 1 (Bits 7–0) | `128`–`32,767` | $y = x$ (`128`–`32,767`) |
+| **Value** | Byte 0 (Bits 6–0) + Byte 1 (Bits 7–0) | `0`–`127` | $y = 32,768 + x$ (`32,768`–`32,895`) |
+
+```{note}
+**NumHeader16 Long Form Range Extension:**
+Because values `0`–`127` are already encodable in the 1-byte short form, NumHeader16 repurposes values `0`–`127` in long form to extend the maximum range from `32,767` up to `32,895` ($32,768 + 127$).
+```
 
 ---
 
 ## NumHeader32
 
-NumHeader32 uses 1 byte in short form and 4 bytes in long form. It can encode integers in the range 0-2147483647.
-The short form of NumHeader32 is identical to short of NumHeader16.
+NumHeader32 uses 1 byte in short form and 4 bytes in long form. It encodes integers in the range `0`–`2,147,483,647` ($2^{31} - 1$).
 
-**NumHeader32 - short form (0-127)**:
+### Short Form (0 – 127)
 
-<table>
-  <thead>
-    <tr>
-      <th colspan="2">Byte 0</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>BIT 7</td>
-      <td>BITS 6-0</td>
-    </tr>
-    <tr>
-      <td>LONG_BIT</td>
-      <td>VALUE</td>
-    </tr>
-    <tr>
-      <td>0</td>
-      <td>0-127</td>
-    </tr>
-  </tbody>
-</table>
+The short form of NumHeader32 is identical to NumHeader16:
 
-**NumHeader32 - longform form (128-2147483647)**:
+```text
++-------+-----------------------+
+| Bit 7 |       Bits 6-0        |
++-------+-----------------------+
+|   0   |    Length (0 - 127)   |
++-------+-----------------------+
+    ^
+    +-- LONG_BIT = 0
+```
 
-<table>
-  <thead>
-    <tr>
-      <th colspan="2">Byte 0</th>
-      <th colspan="1">Byte 1</th>
-      <th colspan="1">Byte 2</th>
-      <th colspan="1">Byte 3</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>BIT 7</td>
-      <td>BITS 6-0</td>
-      <td>BITS 7-0</td>
-      <td>BITS 7-0</td>
-      <td>BITS 7-0</td>
-    </tr>
-    <tr>
-      <td colspan="1">LONG_BIT</td>
-      <td colspan="4">VALUE</td>
-    </tr>
-    <tr>
-      <td colspan="1">1</td>
-      <td colspan="2">128-2147483647</td>
-    </tr>
-  </tbody>
-</table>
+| Field | Bits | Value | Description |
+|:---|:---|:---|:---|
+| **LONG_BIT** | Byte 0, Bit 7 | `0` | Specifies 1-byte short form |
+| **Length** | Byte 0, Bits 6–0 | `0`–`127` | Direct message length in bytes |
+
+### Long Form (128 – 2,147,483,647)
+
+```text
++-------------------------------+---------------+---------------+---------------+
+|             Byte 0            |     Byte 1    |     Byte 2    |     Byte 3    |
++-------+-----------------------+---------------+---------------+---------------+
+| Bit 7 |       Bits 6-0        |    Bits 7-0   |    Bits 7-0   |    Bits 7-0   |
++-------+-----------------------+---------------+---------------+---------------+
+|   1   |                               Value (31-bit)                          |
++-------+-----------------------------------------------------------------------+
+    ^
+    +-- LONG_BIT = 1
+```
+
+| Field | Bits | Value Range | Description |
+|:---|:---|:---|:---|
+| **LONG_BIT** | Byte 0, Bit 7 | `1` | Specifies 4-byte long form |
+| **Length** | Bytes 0–3 (Bits 30–0) | `128`–`2,147,483,647` | 31-bit Big-Endian message length |
+
+---
 
 ## NumHeader Examples
 
-| Value      | NumHeader16  | NumHeader32          |
-|:-----------|:-------------|:---------------------|
-| 127        | `"\x7F"`     | `"\x7F"`             |
-| 128        | `"\x80\x80"` | `"\x80\x00\x00\x80"` |
-| 32767      | `"\xFF\xFF"` | `"\x80\x00\x7F\xFF"` |
-| 32768      | `"\x80\00"`  | `"\x80\x00\x80\x00"` |
-| 32895      | `"\x80\7F"`  | `"\x80\x00\x80\x7F"` |
-| 2147483647 | -            | `"\xFF\xFF\xFF\xFF"` |
+| Value | NumHeader16 | NumHeader32 |
+|:---|:---|:---|
+| 127 | `"\x7F"` | `"\x7F"` |
+| 128 | `"\x80\x80"` | `"\x80\x00\x00\x80"` |
+| 32,767 | `"\xFF\xFF"` | `"\x80\x00\x7F\xFF"` |
+| 32,768 | `"\x80\x00"` | `"\x80\x00\x80\x00"` |
+| 32,895 | `"\x80\x7F"` | `"\x80\x00\x80\x7F"` |
+| 2,147,483,647 | *(Out of range)* | `"\xFF\xFF\xFF\xFF"` |
 
+```{note}
+The table above demonstrates how values are represented in hexadecimal form using C99 string literals.
 
----
-**NOTE**
-
-The table above demonstrates how (integer) values are represented in hexadecimal form using string literals. These literals are valid C99 strings.
-
-In python you will need to prepend each string literal with the character b.
-
-Example: `"\x80\x80" –> b"\x80\x80"`
-
----
+In Python, prepend bytes literals with `b`:
+* Example: `b"\x80\x80"`
+```

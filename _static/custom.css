@@ -1,0 +1,10 @@
+/* Custom CSS styling for APX documentation */
+
+/* Style diagrams with a white card background, subtle padding, and soft rounded corners in Dark Mode */
+[data-theme="dark"] .content img {
+    background-color: #ffffff;
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    box-sizing: border-box;
+}

@@ -1,0 +1,21 @@
+flowchart LR
+    subgraph Inputs ["Require Ports (Input)"]
+        direction TB
+        R1["Require Port 1"]
+        R2["Require Port 2"]
+    end
+
+    SWC["<b>Software Component</b>"]
+
+    subgraph Outputs ["Provide Ports (Output)"]
+        direction TB
+        P1["Provide Port 1"]
+        P2["Provide Port 2"]
+        P3["Provide Port 3"]
+    end
+
+    R1 --> SWC
+    R2 --> SWC
+    SWC --> P1
+    SWC --> P2
+    SWC --> P3

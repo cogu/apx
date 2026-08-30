@@ -1,20 +1,11 @@
----
-layout: default
-title: Introduction
-permalink: /introduction
-nav_order: 2
-has_children: true
-has_toc: false
----
-
 # Introduction
-{: .no_toc }
 
-## Table of contents
-{: .no_toc .text-delta }
+```{toctree}
+:maxdepth: 1
+:hidden:
 
-1. TOC
-{:toc}
+components
+```
 
 ## What is APX?
 
@@ -25,7 +16,8 @@ In AUTOSAR, Software Components (SWCs) use ports to communicate with the outside
 - Require-ports &#8212; used to receive data.
 - Provide-ports &#8212; used to send data.
 
-![Software Component](/apx/images/SoftwareComponent.png)
+```{mermaid} ../diagrams/SoftwareComponent.mmd
+```
 
 APX allows you to distribute not only the port values but also the port definitions (names, datatypes, init value etc.) very efficiently over a network or serial bus. It works best over short distances (SPI buses, shared memory, local area networks, localhost etc.).
 
@@ -43,7 +35,7 @@ Once port connectors (routing tables) have been been created, new port values no
 Even though the network topology is a traditional star network (one server, many clients), the server routes the data so fast that in practice you can regard
 the network as a signal bus. This is called the *APX signal network*.
 
-![APX signal network](/apx/images/APX_Signal_Network_Small.png)
+![APX signal network](../images/APX_Signal_Network_Small.png)
 
 ## One specification &#8212; Many Implementations
 
@@ -72,9 +64,8 @@ Supported technologies (so far):
 - Shared memory bus (*source code not yet public*)
 
 The design of c-apx relies heavily on the concept of *dependency injection*. This means you can implement the low-level send/receive interface
-yourself and plug it into the runtime without modifying existing code base, thus adding new connection options.
+yourself and plug it into the runtime without modifying existing code base, trailing additions of new connection options.
 
 ## Next
-{: .no_toc }
 
-[Components and Ports](/apx/introduction/components)
+- [Components and Ports](components.md)

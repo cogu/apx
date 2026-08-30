@@ -1,14 +1,3 @@
----
-layout: default
-title: Python API Reference
-permalink: /implementations/python_api
-parent: APX for Python
-grand_parent: Implementations
-has_children: false
-has_toc: false
-nav_order: 1
----
-
 # Python API Reference
 
 ## Class Node
@@ -34,7 +23,7 @@ apx.Node([name = None])
 
 Creates an empty APX node. Setting a name during construction is optional but a valid name must be set before the node is taken in use (as client or for code/text generation purposes).
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **name** (str) — Name of the APX node.
 
@@ -46,7 +35,7 @@ apx.Node.from_autosar_swc(swc, [name = None], [reverse = False])
 
 Class method that generates an APX node based on the name and ports of an AUTOSAR SWC.
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **swc** (ApplicationSoftwareComponent) — SWC to analyze.
 - **name** (str) — Sets a new name for the generated APX node. Default is to copy the name from the SWC.
@@ -60,7 +49,7 @@ apx.Node.from_text(text)
 
 Class method that generates an APX node based on a raw APX definition string.
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **text** (str) — APX definition string.
 
@@ -165,7 +154,7 @@ Node.add_type(new_type)
 
 Adds a data type to the node. This method is automatically called should you use the Node.append method with *new_type* as argument.
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **new_type** (apx.DataType) — datatype to add.
 
@@ -177,7 +166,7 @@ Node.add_require_port(require_port)
 
 Adds a require type to the node. This method is automatically called should you use the Node.append method with *require_port* as argument.
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **require_port** (apx.RequirePort) — port to add.
 
@@ -189,7 +178,7 @@ Node.add_provide_port(provide_port)
 
 Adds a require type to the node. This method is automatically called should you use the Node.append method with *provide_port* as argument.
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **provide_port** (apx.ProvidePort) — port to add.
 
@@ -201,7 +190,7 @@ Node.save_apx([output_dir='.'], [output_file = None], [normalized = False] )
 
 Saves the APX node in a file using the *.apx* file extension.
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **output_dir** (str) — Path to directory where to save the file. Default is current directory.
 - **output_file** (str) — Name of file. Default is to generate a name based on the node name.
@@ -215,7 +204,7 @@ Node.save_apx([output_dir='.'], [output_file = None] )
 
 Same as calling Node.save_apx(output_dir, output_file, True).
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **output_dir** (str) — Path to directory where to save the file. Default is current directory.
 - **output_file** (str) — Name of file. Default is to generate a name based on the node name.
@@ -228,7 +217,7 @@ Node.mirror( [name = None] )
 
 Generates a new node in a version where the direction of all require/provide ports are reversed.
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **name** (str) — Name of the new node. Default is to copy the name from the original node.
 
@@ -240,7 +229,7 @@ Node.extend( other_node )
 
 Copies all ports from *other_node* and adds them to this node.
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **other_node** (apx.Node) — Node to copy.
 
@@ -259,7 +248,7 @@ Creates a new data type object. The constructor takes either 2 or 3 string argum
 apx.DataType(name, dataSignature, [attributes = None] ):
 ```
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **name** (str) — Data type name.
 - **data_signature** (str) — Data signature (DSG) string.
@@ -304,7 +293,7 @@ apx.RequirePort(name, data_signature, [attributes = None] )
 
 The constructor takes 3 strings as arguments where the last string is optional.
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **name** (str) — Port name.
 - **data_signature** (str) — Data signature (DSG) string.
@@ -349,7 +338,7 @@ apx.ProvidePort(name, data_signature, [attributes = None] )
 
 The constructor takes 3 strings as arguments where the last string is optional.
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **name** (str) — Port name.
 - **data_signature** (str) — Data signature (DSG) string.
@@ -387,7 +376,7 @@ Parser.parse(filename)
 
 Convenience method for parsing file from filename
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **filename** (str) — Name of file to parse.
 
@@ -403,7 +392,7 @@ Parser.load(fp)
 
 Parses APX IDL from an open file handle.
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **fp** (file) — A previously opened file handle.
 
@@ -419,7 +408,7 @@ Parser.loads(apx_text)
 
 Parses APX IDL directly from a string
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **apx_text** (apx_text) — Raw APX IDL string.
 
@@ -440,7 +429,7 @@ Note that right now it only supports c-apx v0.2.
 apx.NodeGenerator([record_elem_suffix = None])
 ```
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **record_elem_suffix** (str) — name suffix to be added to all record (struct) element accesses in generated code.
 
@@ -454,7 +443,7 @@ NodeGenerator.generate(output_dir, node, [name=None], [includes=None], [callback
 [compact=False] )
 ```
 
-**Parameters:**{: .fs-3}
+**Parameters:**
 
 - **output_dir** (str) — directory where to generate header and source files
 - **node** (apx.Node)— APX node object
