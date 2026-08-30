@@ -1,25 +1,6 @@
----
-layout: default
-title: Serialization Rules
-permalink: /specification/vm/serialization_rules
-parent: APX VM
-grand_parent: Specifications
-has_toc: true
-nav_order: 3
----
-
 # APX Data Serialization Rules
-{: .no_toc }
 
 This document defines the binary serialization and deserialization rules for the APX (AUTOSAR Port eXchange) Virtual Machine, detailing how each data type (TypeCode) is encoded into a byte buffer. It also specifies the architectural mechanism for handling dynamic data structures in memory-mapped environments via deterministic slot padding (`padded_next`).
-
-## Table of contents
-{: .no_toc .text-delta }
-
-1. TOC
-{:toc}
-
----
 
 ## 1. Overview and Core Principles
 

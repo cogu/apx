@@ -1,20 +1,4 @@
----
-layout: default
-title: Components and Ports
-permalink: /introduction/components
-parent: Introduction
-nav_order: 1
-has_children: false
----
-
 # Components and Ports
-{: .no_toc }
-
-## Table of contents
-{: .no_toc .text-delta }
-
-1. TOC
-{:toc}
 
 ## Software Components
 
@@ -23,7 +7,8 @@ In the automotive industry it's common practice to use some form of *component-b
 A software component encapsulates a related set of functions and/or data. The component commmunicates with the outside world exclusively using *ports*.
 The ports are a part of the component and represents its interface. In AUTOSAR, this is called the *Port Interface*.
 
-![Software Component](/apx/images/SoftwareComponent.png)
+```{mermaid} ../diagrams/SoftwareComponent.mmd
+```
 
 ## Types of Ports
 

@@ -1,12 +1,3 @@
----
-layout: default
-title: RemoteFile v1.0
-permalink: /specification/protocol/remotefile
-parent: Protocols
-grand_parent: Specifications
-nav_order: 2
----
-
 # RemoteFile v1.0
 
 RemoteFile is a message-based data protocol used by two sides in a point-to-point communication link (e.g. in a socket connection). It’s primary use case is to act as the application layer of an active APX session.
@@ -18,7 +9,7 @@ Each side of the connection maintains a 1GB block of virtual memory. This is cal
 In addition to the local 1GB address space, each side also maintains another 1GB block of virtual memory. This is called the *remote memory*.
 The last 1KB (1024 bytes) of this address space is reserved and is called the *control area*.
 
-![Empty Memory Map](/apx/images/RemoteFile_Empty.png)
+![Empty Memory Map](../../images/RemoteFile_Empty.png)
 
 The basic principle behind RemoteFile is about continous data synchronization (or data mirroring). When a byte is updated in local memory at end-point A, the change is reflected into the remote memory at end-point B (transmitted as a write operation from A to B). Likewise, any change in B's local memory is reflected to A's remote memory (transmitted as write operation from B to A).
 
@@ -73,7 +64,7 @@ All communication is message-based, each message has two components:
 
 Since RemoteFile is designed to be used on any communication link it does not officially define a message header since there usually exists protocols for this already.
 
-In case you are communicating over a socket (or other stream-based communication) you can use [NumHeader](/apx/specification/protocol/numheader) as the message header protocol.
+In case you are communicating over a socket (or other stream-based communication) you can use [NumHeader](numheader.md) as the message header protocol.
 If you plan to use RemoteFile on TCP then NumHeader32 is the recommended choice.
 
 ## RemoteFile Greeting Header

@@ -1,12 +1,11 @@
----
-layout: default
-title: Specifications
-permalink: /specification
-has_children: true
-has_toc: false
-nav_order: 5
----
-
 # APX Specifications
 
-TBD
+This section contains formal specifications for the APX technology.
+
+```{toctree}
+:maxdepth: 2
+
+idl/idl
+vm/vm
+protocols/protocols
+```

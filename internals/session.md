@@ -1,12 +1,3 @@
----
-layout: default
-title: The APX session
-permalink: /internals/session
-parent: APX Internals
-nav_order: 2
-has_children: false
----
-
 # The APX session
 
 This chapter describes in detail what happens when APX clients connects to the server.

@@ -1,14 +1,3 @@
----
-layout: default
-title: apx_node
-permalink: /implementations/c/apx_node
-parent: APX for C
-grand_parent: Implementations
-has_children: false
-has_toc: false
-nav_order: 2
----
-
 # apx_node
 
 ## Synopsis

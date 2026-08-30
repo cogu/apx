@@ -1,13 +1,10 @@
----
-layout: default
-title: APX for Python
-permalink: /implementations/python
-parent: Implementations
-has_children: true
-has_toc: false
-nav_order: 3
----
-
 # APX for Python
 
-[Python API Reference](/apx/implementations/python_api)
+```{toctree}
+:maxdepth: 1
+:hidden:
+
+python_api
+```
+
+- [Python API Reference](python_api.md)

@@ -1,11 +1,3 @@
----
-layout: default
-title: The RemoteFile Protocol
-permalink: /internals/remotefile
-parent: APX Internals
-nav_order: 1
----
-
 # The RemoteFile Protocol
 
 Communication between APX clients and server is actually done using a lower-level protocol called *RemoteFile*.
@@ -19,9 +11,9 @@ This is an introductory text to the RemoteFile Protocol.
 The key to the RemoteFile protocol is to keep sections of memory in synch with each other over a point-to-point connection. In essence, what we do is to mirror data changes taking place on one side of the connection to the other side. This is done in a bidirectional fashion allowing us to keep data in
 synch at all times.
 
-In order to describe how this work we will introduce some new terms. First, the two sides of a bidirectional connection is called End-Points. In this text, we will use the terms *End-Point A* and End-Point B* to differentiate between the two.
+In order to describe how this work we will introduce some new terms. First, the two sides of a bidirectional connection is called End-Points. In this text, we will use the terms *End-Point A* and *End-Point B* to differentiate between the two.
 
-![Connection End-Points](/apx/images/RemoteFile_EndPoints.png)
+![Connection End-Points](../images/RemoteFile_EndPoints.png)
 
 ## Files
 
@@ -41,7 +33,7 @@ mean the definition seen above.
 Both connection end-points continously maintain two 1GB memory maps. One is used for locally created files while the other is used for remotely created files.
 All events that takes place in the local memory map at one end-point is synched to the remote memory map at the other end-point.
 
-![Empty Memory Map](/apx/images/RemoteFile_Empty.png)
+![Empty Memory Map](../images/RemoteFile_Empty.png)
 
 The memory maps are obviously virtual memory only. otherwise we couldn't be using this technique on small embedded devices as was originally intended.
 Remember that the files created in the map needs to be fully contigous (containing no memory holes), however, it is important to allow memory holes *between* the files.
@@ -54,9 +46,9 @@ map with empty space.
 At any time, each end-point can write data into the remote memory map on the opposite side of the connection.
 If for example, you want to update a single byte at address 0 you simply issue a write command.
 
-| Write Address | 0     |
-| Write Length  | 1     |
-| Data          | 0-255 |
+| Write Address | 0 |
+| Write Length | 1 |
+| Data | 0-255 |
 
 However, you are only allowed to write to addresses where a file actually exists and has been previously opened by the remote side.
 
@@ -64,17 +56,17 @@ However, you are only allowed to write to addresses where a file actually exists
 
 > Any memory write to an address (lower than 0x3FFFFC00) is illegal, unless:
 >
->  1. A file exists in that address range.
->  2. The file mapped in that range has been previousy opened by remote connection end-point.
+> 1. A file exists in that address range.
+> 2. The file mapped in that range has been previousy opened by remote connection end-point.
 
 ## The Control Area
 
 The limits (start and end addresses) of the memory maps are as follows:
 
-| Map Type    | Start Address | End Address  |
-|-------------|---------------|--------------|
-| Local Map   | 0x00000000    | 0x3FFFFBFF   |
-| Remote Map  | 0x00000000    | 0x3FFFFFFF   |
+| Map Type | Start Address | End Address |
+|:---|:---|:---|
+| Local Map | 0x00000000 | 0x3FFFFBFF |
+| Remote Map | 0x00000000 | 0x3FFFFFFF |
 
 The remote memory maps are 1KB larger, This section is called the *control area*.
 By writing data to the control area you are issuing commands such as:
@@ -95,14 +87,14 @@ Files are created in the remote memory by sending a *FileInfo* structure from on
 
 **Contents of FileInfo Structure:**
 
-| Name        | Type                   |
-|-------------|------------------------|
-| Address     | UINT32                 |
-| Length      | UINT32                 |
-| FileType    | UINT16                 |
-| DigestType  | UINT16                 |
-| DigestData  | UINT8[32]              |
-| Name        | Null-terminated string |
+| Name | Type |
+|:---|:---|
+| Address | UINT32 |
+| Length | UINT32 |
+| FileType | UINT16 |
+| DigestType | UINT16 |
+| DigestData | UINT8[32] |
+| Name | Null-terminated string |
 
 For now let's just focus on the first two as well as the last element of the structure:
 
@@ -121,9 +113,9 @@ After the FileInfo has been received and processed by the remote side, the remot
 
 **Contents of FileOpen Structure:**
 
-| Name        | Type                   |
-|-------------|------------------------|
-| Address     | UINT32                 |
+| Name | Type |
+|:---|:---|
+| Address | UINT32 |
 
 ## File Synchronization
 
@@ -144,4 +136,4 @@ In the example seen below we have two files.
 - **Foo.txt**: owned by end-point A, mirrored to end-point B.
 - **Bar.txt**: owned by end-point B, mirrored to end-point A.
 
-![File Synchronization Example](/apx/images/RemoteFile_Sync.png)
+![File Synchronization Example](../images/RemoteFile_Sync.png)

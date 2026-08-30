@@ -1,11 +1,3 @@
----
-layout: default
-title: APX for C++
-permalink: /implementations/cpp
-parent: Implementations
-nav_order: 2
----
-
 # APX for C++
 
 The primary purpose of this implementation is to prototype and evaluate new features in APX IDL v1.3 as well as

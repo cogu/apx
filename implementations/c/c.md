@@ -1,17 +1,16 @@
----
-layout: default
-title: APX for C
-permalink: /implementations/c
-parent: Implementations
-has_children: true
-has_toc: false
-nav_order: 1
----
-
 # APX for C
+
+```{toctree}
+:maxdepth: 1
+:hidden:
+
+apx_control
+apx_node
+apx_server
+```
 
 ## Apps
 
-- [apx_control](/apx/implementations/c/apx_control)
-- [apx_node](/apx/implementations/c/apx_node)
-- [apx_server](/apx/implementations/c/apx_server)
+- [apx_control](apx_control.md)
+- [apx_node](apx_node.md)
+- [apx_server](apx_server.md)
