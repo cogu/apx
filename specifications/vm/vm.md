@@ -13,3 +13,4 @@ nav_order: 3
 - APX VM 1.0
 - [APX VM 2.0](/apx/specification/vm/vm2_0)
 - [APX VM 2.1 (draft)](/apx/specification/vm/vm2_1)
+- [Serialization Rules](/apx/specification/vm/serialization_rules)
