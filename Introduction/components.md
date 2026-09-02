@@ -41,9 +41,9 @@ flow, and *provide port* and *require port* when discussing node definitions or
 the APX specifications.
 
 APX is not a conventional topic-based message broker. A node does not call a
-subscribe function at runtime. Instead, its APX Text declares provide and
-require ports. The server uses those declarations to create routes between
-ports with matching names and compatible types.
+subscribe function at runtime. Instead, its APX definition file declares
+provide and require ports. The server uses those declarations to create routes
+between ports with matching names and compatible types.
 
 ## Provide and require ports
 
@@ -69,7 +69,7 @@ value. This includes:
 - an optional initial value.
 
 APX supports scalar values, strings, arrays, and records. These definitions are
-encoded in APX Text and determine how values are serialized into the node's
+written in APX IDL and determine how values are serialized into the node's
 binary data area.
 
 ## Port matching

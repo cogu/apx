@@ -75,11 +75,11 @@ Typical uses include:
 - joining embedded devices and desktop tools in a development network; and
 - integrating independently developed components during continuous testing.
 
-## APX Text describes the interface
+## APX definition files describe interfaces
 
-APX represents a node interface in a compact interface definition language
-known as **APX Text**. Only the information needed to exchange port data is
-included.
+Each node is described by an **APX definition file** with the `.apx` file
+extension. The file is written in **APX IDL**, a compact interface definition
+language that includes only the information needed to exchange port data.
 
 ```text
 APX/1.2
@@ -93,9 +93,10 @@ The example declares a node named `VehicleStatus`. The `P` line publishes
 and value ranges give both peers enough information to agree on the binary
 representation of each value.
 
-APX Text can be generated from an AUTOSAR model, produced by a tool, or written
-directly. During connection setup, the definition is transferred as text. Live
-port values are then exchanged using compact binary data.
+An APX definition file can be generated from an AUTOSAR model, produced by a
+tool, or written directly. During connection setup, the definition file is
+transferred as text. Live port values are then exchanged using compact binary
+data.
 
 ## From connection to live data
 
