@@ -2,7 +2,7 @@
 
 APX IDL is an Interface Definition Language (IDL) created and maintained by [Conny Gustafsson](https://github.com/cogu/).
 
-Previously this language was known as *APX Text* but has since been renamed to APX IDL.
+Previously, this language was known as *APX Text*, but it has since been renamed to APX IDL.
 
 ## Terminology
 
@@ -46,10 +46,10 @@ apx_idl_13
 
 - Developed in 2016-2017 with a toolchain implemented in Python 3.
 - Stable version used by all implementations.
-- Backwards compatible with APX IDL v1.0.
+- Backward-compatible with APX IDL v1.0.
 
 ### APX v1.3
 
 - In active development.
 - Full implementations in C and Python 3.
-- Backwards compatible with APX IDL v1.2 (with redefined 64-bit integers and explicit char encodings).
+- Backward-compatible with APX IDL v1.2 (with redefined 64-bit integers and explicit char encodings).

@@ -2,31 +2,31 @@
 
 This document defines the binary serialization and deserialization rules for the APX (AUTOSAR Port eXchange) Virtual Machine, detailing how each data type (TypeCode) is encoded into a byte buffer. It also specifies the architectural mechanism for handling dynamic data structures in memory-mapped environments via deterministic slot padding (`padded_next`).
 
-## 1. Overview and Core Principles
+## Overview and Core Principles
 
 APX is designed for high-performance inter-process, inter-core, and networked communication in embedded and distributed automotive software systems.
 
-### 1.1 Packed Binary Serialization
-In almost all scenarios, APX serializes data **densely packed without inter-field padding or structural alignment**. Data fields are placed consecutively into the binary stream byte-for-byte, matching the semantics of packed structures (e.g. `#pragma pack(push, 1)` in C/C++).
+### Packed Binary Serialization
+In almost all scenarios, APX serializes data **densely packed without inter-field padding or structural alignment**. Data fields are placed consecutively into the binary stream byte-for-byte, matching the semantics of packed structures (e.g., `#pragma pack(push, 1)` in C/C++).
 
-- No compiler-induced alignment bytes (e.g. aligning 16-bit or 32-bit values to even or 4-byte boundaries).
+- No compiler-induced alignment bytes (e.g., aligning 16-bit or 32-bit values to even or 4-byte boundaries).
 - Consecutive fields in records/structs are placed immediately adjacent to one another.
 
-### 1.2 Endianness
+### Endianness
 All multi-byte numeric primitives (`UINT16`, `UINT32`, `UINT64`, `INT16`, `INT32`, `INT64`) and multi-byte character code units (`CHAR16`, `CHAR32`) are serialized in **Standard Little-Endian (LE)** byte order, regardless of the host machine's native CPU architecture.
 
-### 1.3 Memory-Mapped Determinism
+### Memory-Mapped Determinism
 At lower layers of the APX communication pipeline (such as shared memory files, byte port maps, and virtual bus adapters), buffers are memory-mapped. This requires that the **maximum memory footprint and offsets of all data structures and fields are statically predictable**.
 
-To support variable-length data (such as dynamic arrays and dynamic strings) without causing subsequent data elements to shift in memory offset, APX implements a specialized **slot padding mechanism** (see [Section 3](#3-the-padding-mechanism-for-memory-mapped-predictability)).
+To support variable-length data (such as dynamic arrays and dynamic strings) without causing subsequent data elements to shift in memory offset, APX implements a specialized **slot padding mechanism** (see [The Padding Mechanism for Memory-Mapped Predictability](#the-padding-mechanism-for-memory-mapped-predictability)).
 
 ---
 
-## 2. Serialization Rules by Data Type (TypeCode)
+## Serialization Rules by Data Type
 
 This section specifies how individual data types are serialized and deserialized by the APX Virtual Machine.
 
-### 2.1 Summary of TypeCodes
+### Summary of TypeCodes
 
 | TypeCode | ID | Byte Size | Native / Scripting Equivalent | Description |
 |:---|:---:|:---:|:---|:---|
@@ -49,7 +49,7 @@ This section specifies how individual data types are serialized and deserialized
 
 ---
 
-### 2.2 Unsigned Integers (`UINT8`, `UINT16`, `UINT32`, `UINT64`)
+### Unsigned Integers (`UINT8`, `UINT16`, `UINT32`, `UINT64`)
 
 Unsigned integer types represent non-negative binary integers.
 
@@ -58,13 +58,13 @@ Unsigned integer types represent non-negative binary integers.
 - **`UINT32`** (4 bytes): Encoded as 4 bytes in little-endian format, range `0..4,294,967,295`.
 - **`UINT64`** (8 bytes): Encoded as 8 bytes in little-endian format, range `0..18,446,744,073,709,551,615`.
 
-#### Byte Layout Example (`UINT16` = `0x1234`):
+**Byte Layout Example (`UINT16` = `0x1234`):**
 ```
 Offset 0: 0x34 (LSB)
 Offset 1: 0x12 (MSB)
 ```
 
-#### Byte Layout Example (`UINT32` = `0x01020304`):
+**Byte Layout Example (`UINT32` = `0x01020304`):**
 ```
 Offset 0: 0x04 (LSB)
 Offset 1: 0x03
@@ -74,7 +74,7 @@ Offset 3: 0x01 (MSB)
 
 ---
 
-### 2.3 Signed Integers (`INT8`, `INT16`, `INT32`, `INT64`)
+### Signed Integers (`INT8`, `INT16`, `INT32`, `INT64`)
 
 Signed integer types represent two's complement binary integers.
 
@@ -83,7 +83,7 @@ Signed integer types represent two's complement binary integers.
 - **`INT32`** (4 bytes): Encoded as 4 bytes two's complement in little-endian format, range `-2,147,483,648..2,147,483,647`.
 - **`INT64`** (8 bytes): Encoded as 8 bytes two's complement in little-endian format, range `-9,223,372,036,854,775,808..9,223,372,036,854,775,807`.
 
-#### Byte Layout Example (`INT16` = `-2` / `0xFFFE`):
+**Byte Layout Example (`INT16` = `-2` / `0xFFFE`):**
 ```
 Offset 0: 0xFE
 Offset 1: 0xFF
@@ -91,35 +91,35 @@ Offset 1: 0xFF
 
 ---
 
-### 2.4 Boolean (`BOOL`)
+### Boolean (`BOOL`)
 
 - **Size**: 1 byte.
 - **Values**:
   - `0x00`: `false`
   - `0x01`: `true`
-- **Serialization Behavior**: Any non-zero truthy input in the high-level variant (e.g. `true`, `1`) is normalized and written as `0x01`.
+- **Serialization Behavior**: Any non-zero truthy input in the high-level variant (e.g., `true`, `1`) is normalized and written as `0x01`.
 - **Deserialization Behavior**: `0x00` deserializes to `false`; any non-zero value (`!= 0`) deserializes to `true`.
 
 ---
 
-### 2.5 Raw Bytes / Blob (`BYTE`)
+### Raw Bytes / Blob (`BYTE`)
 
 - **Unit Size**: 1 byte per element.
 - **Usage**: Used for raw binary blobs, payload buffers, or cryptographic digests.
 - **Fixed Byte Array (`BYTE[N]`)**: Exactly `N` bytes are copied directly into the buffer. The in-memory payload length must match `N` exactly.
-- **Dynamic Byte Array (`BYTE[<=N]`)**: Prefixed by a dynamic length header (`1`, `2`, or `4` bytes), followed by `K <= N` active bytes. Unused allocated capacity (`N - K`) is handled via slot padding (see [Section 3](#3-the-padding-mechanism-for-memory-mapped-predictability)).
+- **Dynamic Byte Array (`BYTE[<=N]`)**: Prefixed by a dynamic length header (`1`, `2`, or `4` bytes), followed by `K <= N` active bytes. Unused allocated capacity (`N - K`) is handled via slot padding (see [The Padding Mechanism for Memory-Mapped Predictability](#the-padding-mechanism-for-memory-mapped-predictability)).
 
 ---
 
-### 2.6 Characters and Strings (`CHAR`, `CHAR8`, `CHAR16`, `CHAR32`)
+### Characters and Strings (`CHAR`, `CHAR8`, `CHAR16`, `CHAR32`)
 
-#### 2.6.1 Scalar Characters (Array Length = 0)
+**Scalar Characters (Array Length = 0):**
 When encoded as a scalar character, a single character code unit is packed directly:
 - `CHAR` / `CHAR8`: 1 byte (ASCII / UTF-8 code unit).
 - `CHAR16`: 2 bytes (UTF-16 code unit, little-endian).
 - `CHAR32`: 4 bytes (UTF-32 code unit, little-endian).
 
-#### 2.6.2 Fixed-Length Strings (`CHAR[N]`, `CHAR8[N]`)
+**Fixed-Length Strings (`CHAR[N]`, `CHAR8[N]`):**
 Fixed-length strings allocate exactly `N * element_size` bytes in the buffer:
 - **No dynamic length prefix** is written.
 - If the in-memory string length `L <= N`, the serializer writes the string bytes and **zero-fills (null-pads)** the remaining `N - L` bytes up to the full buffer capacity `N`.
@@ -136,7 +136,7 @@ Offset 5: 0x00 (null padding)
 Total size: 6 bytes
 ```
 
-#### 2.6.3 Dynamic Strings (`CHAR[<=N]`, `CHAR8[<=N]`)
+**Dynamic Strings (`CHAR[<=N]`, `CHAR8[<=N]`):**
 Dynamic strings are variable-length character sequences with a declared maximum capacity `N`:
 - **Length Prefix**: `1`, `2`, or `4` bytes indicating the actual string length `K` (`K <= N`).
 - **Payload**: Exactly `K` character bytes (no null-terminator is required in the packed payload).
@@ -144,27 +144,27 @@ Dynamic strings are variable-length character sequences with a declared maximum 
 
 ---
 
-### 2.7 Records (Structs)
+### Records (Structs)
 
 A record is a composite data structure containing an ordered sequence of named fields.
 
-#### 2.7.1 Field Ordering and Packing
+**Field Ordering and Packing:**
 - Fields are serialized in the **exact declaration order** defined in the APX IDL specification.
 - **No structure alignment or compiler-inserted padding** exists between fields. For example, a `UINT8` followed by a `UINT32` occupies exactly 5 contiguous bytes ($1 + 4$).
 
-#### 2.7.2 Nested Records
+**Nested Records:**
 - A record field may itself be a child record.
 - The child record's fields are serialized inline in sequence.
 
-#### 2.7.3 Arrays of Records (`RECORD[N]` and `RECORD[<=N]`)
+**Arrays of Records (`RECORD[N]` and `RECORD[<=N]`):**
 - **Fixed Array of Records (`RECORD[N]`)**: All `N` record instances are serialized consecutively. Each record instance occupies its full static maximum record size.
 - **Dynamic Array of Records (`RECORD[<=N]`)**: Prefixed by the array length integer ($K \le N$), followed by $K$ serialized record instances.
 
-> **Note**: When each record element contains dynamic fields, each record element is padded to its maximum static record size before the next record element begins (see [Section 3.3](#example-2-array-of-records-containing-a-dynamic-string)).
+> **Note**: When each record element contains dynamic fields, each record element is padded to its maximum static record size before the next record element begins (see [Concrete Byte Layout Examples](#concrete-byte-layout-examples)).
 
 ---
 
-### 2.8 Queued Port Serialization (`QUEUED_DATA`)
+### Queued Port Serialization (`QUEUED_DATA`)
 
 For queued provide/require ports, the port buffer stores a queue of elements:
 - **Queue Length Prefix**: Encodes the current number of valid elements queued in the buffer ($0 \le K_{\text{queue}} \le N_{\text{queue}}$).
@@ -175,9 +175,9 @@ For queued provide/require ports, the port buffer stores a queue of elements:
 
 ---
 
-## 3. The Padding Mechanism for Memory-Mapped Predictability
+## The Padding Mechanism for Memory-Mapped Predictability
 
-### 3.1 The Problem: Fluctuation in Memory-Mapped Offsets
+### Problem: Fluctuation in Memory-Mapped Offsets
 
 In low-level APX implementations, data communication relies on memory-mapped buffers (such as shared memory files or memory regions mapped directly to device drivers):
 
@@ -189,7 +189,7 @@ To solve this, APX introduces **slot padding (`padded_next`)**.
 
 ---
 
-### 3.2 The Architectural Solution: Slot Padding (`padded_next`)
+### Architectural Solution: Slot Padding (`padded_next`)
 
 Whenever a dynamic array (or dynamic string/record element) is encountered during serialization or deserialization:
 
@@ -210,11 +210,10 @@ Whenever a dynamic array (or dynamic string/record element) is encountered durin
 
 ---
 
-### 3.3 Concrete Byte Layout Examples
+### Concrete Byte Layout Examples
 
-#### Example 1: Record with Dynamic String and Sibling Field
+**Example 1: Record with Dynamic String and Sibling Field**
 
-**Type Definition:**
 ```yaml
 # Record with a dynamic string (max 8 chars) and a uint32 status code
 {"Name"a[<=8]"Status"L}
@@ -224,7 +223,7 @@ Whenever a dynamic array (or dynamic string/record element) is encountered durin
 - Size of `"Status"`: 4 bytes (`UINT32`).
 - Total static record size: $9 + 4 = 13$ bytes.
 
-**Scenario A: Full string `"ABCDEFGH"` (8 chars, `Status = 0x12345678`):**
+*Scenario A: Full string `"ABCDEFGH"` (8 chars, `Status = 0x12345678`):*
 ```
 Offset  0:     0x08        (Length = 8)
 Offset  1..8:  "ABCDEFGH" (8 bytes payload)
@@ -232,7 +231,7 @@ Offset  9..12: 0x78, 0x56, 0x34, 0x12 (Status, little-endian)
 Total written: 13 bytes
 ```
 
-**Scenario B: Short string `"Hi"` (2 chars, `Status = 0x12345678`):**
+*Scenario B: Short string `"Hi"` (2 chars, `Status = 0x12345678`):*
 ```
 Offset  0:     0x02        (Length = 2)
 Offset  1..2:  "Hi"      (2 bytes payload)
@@ -245,9 +244,8 @@ Because `prepare_for_buffer_write()` jumps from offset 3 to offset 9 before writ
 
 ---
 
-#### Example 2: Array of Records Containing a Dynamic String
+**Example 2: Array of Records Containing a Dynamic String**
 
-**Type Definition:**
 ```yaml
 # Array of 2 records, each with a dynamic string (max 4 chars) and a uint8 id
 {"Label"a[<=4]"Id"C}[2]
@@ -256,11 +254,11 @@ Because `prepare_for_buffer_write()` jumps from offset 3 to offset 9 before writ
 - Each record maximum size: $(1 \text{ byte len} + 4 \text{ bytes payload}) + 1 \text{ byte Id} = 6 \text{ bytes}$.
 - Array total size: $2 \times 6 = 12$ bytes.
 
-**Data to serialize:**
+*Data to serialize:*
 - Element 0: `{"Label": "Cat", "Id": 10}` (Length = 3)
 - Element 1: `{"Label": "A",   "Id": 20}` (Length = 1)
 
-**Serialized Byte Stream:**
+*Serialized Byte Stream:*
 ```
 -- Element 0 (Record 0, starts at offset 0) --
 Offset  0:     0x03          (Label length = 3)
@@ -283,66 +281,7 @@ Every record instance occupies exactly 6 bytes. `array_next()` advances across p
 
 ---
 
-## 4. Implementation References
-
-### 4.1 C Implementation (`c-apx`)
-
-- **Serializer** (`apx/src/serializer.c`):
-  - `write_buffer_reset()` initializes `padded_next = NULL`.
-  - `serializer_prepare_for_array()` computes:
-    ```c
-    self->buffer.padded_next = self->buffer.next + length_size + 
-        (self->state->max_array_len * self->state->element_size);
-    ```
-  - `serializer_prepare_for_buffer_write()` is called before every write operation to advance `self->buffer.next` to `self->buffer.padded_next`.
-- **Deserializer** (`apx/src/deserializer.c`):
-  - `deserializer_prepare_for_array()` sets `padded_next = next + (max_array_len * element_size)`.
-  - `deserializer_prepare_for_buffer_read()` jumps `self->buffer.next = self->buffer.padded_next`.
-
-### 4.2 C++ Implementation (`cpp-apx`)
-
-- **Serializer** (`apx/src/serializer.cpp`):
-  - `Serializer::prepare_for_array()` sets `m_buffer.padded_next = m_buffer.next + length_size + (m_state->max_array_len * m_state->element_size);`
-  - `Serializer::prepare_for_buffer_write()` (line 1485):
-    ```cpp
-    /*
-     * If more data follows after a dynamic array write we must move the write pointer to
-     * the first byte after the dynamic array. Otherwise elements after the dynamic array
-     * will start move around in the memory map.
-     */
-    apx::error_t Serializer::prepare_for_buffer_write()
-    {
-       if (!is_valid_buffer())
-       {
-          return APX_MISSING_BUFFER_ERROR;
-       }
-       if (m_buffer.padded_next != nullptr)
-       {
-          if ((m_buffer.padded_next < m_buffer.begin) || (m_buffer.padded_next > m_buffer.end))
-          {
-             return APX_BUFFER_BOUNDARY_ERROR;
-          }
-          m_buffer.next = m_buffer.padded_next;
-          m_buffer.padded_next = nullptr;
-       }
-       return APX_NO_ERROR;
-    }
-    ```
-- **Deserializer** (`apx/src/deserializer.cpp`):
-  - `Deserializer::prepare_for_array()` and `Deserializer::prepare_for_buffer_read()` enforce the same symmetric padding logic for reading.
-
-### 4.3 Python Implementation Guidelines (`py-apx`)
-
-- In `py-apx/src/apx/data/serializer.py`:
-  - `WriteBuffer` tracks `padded_write_pos`.
-  - `prepare_for_buffer_write()` must be called before packing any new value, advancing `write_pos = padded_write_pos` whenever `padded_write_pos is not None`.
-- In `py-apx/src/apx/data/deserializer.py`:
-  - `ReadBuffer` tracks `padded_read_pos`.
-  - `prepare_for_buffer_read()` synchronizes `read_pos = padded_read_pos` before subsequent unpack operations.
-
----
-
-## 5. Quick Reference Summary Table
+## Quick Reference Summary Table
 
 | Data Structure | Length Header | Inter-field Alignment | Unused Capacity Handling | Buffer Stride / Predictability |
 |:---|:---:|:---:|:---|:---|

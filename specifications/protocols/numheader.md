@@ -1,14 +1,14 @@
 # NumHeader
 
-NumHeader encodes an integer in Big-Endian (network byte order). This integer is used as the message header to specify the length of the message payload that directly follows it.
+NumHeader encodes an integer in big-endian (network byte order). This integer is used as the message header to specify the length of the message payload that directly follows it.
 
 NumHeader comes in two variants:
 - **NumHeader16**: Uses 1 byte (short form) or 2 bytes (long form). Encodes lengths in the range `0`–`32,895`.
 - **NumHeader32**: Uses 1 byte (short form) or 4 bytes (long form). Encodes lengths in the range `0`–`2,147,483,647`.
 
 The most significant bit (bit 7) of the first byte is called the **LONG_BIT**:
-- `LONG_BIT = 0`: **Short form** (1 byte header)
-- `LONG_BIT = 1`: **Long form** (2 or 4 byte header)
+- `LONG_BIT = 0`: **Short form** (1-byte header)
+- `LONG_BIT = 1`: **Long form** (2- or 4-byte header)
 
 ---
 
@@ -101,7 +101,7 @@ The short form of NumHeader32 is identical to NumHeader16:
 | Field | Bits | Value Range | Description |
 |:---|:---|:---|:---|
 | **LONG_BIT** | Byte 0, Bit 7 | `1` | Specifies 4-byte long form |
-| **Length** | Bytes 0–3 (Bits 30–0) | `128`–`2,147,483,647` | 31-bit Big-Endian message length |
+| **Length** | Bytes 0–3 (Bits 30–0) | `128`–`2,147,483,647` | 31-bit big-endian message length |
 
 ---
 
@@ -119,6 +119,6 @@ The short form of NumHeader32 is identical to NumHeader16:
 ```{note}
 The table above demonstrates how values are represented in hexadecimal form using C99 string literals.
 
-In Python, prepend bytes literals with `b`:
+In Python, prefix byte literals with `b`:
 * Example: `b"\x80\x80"`
 ```

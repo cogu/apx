@@ -65,7 +65,7 @@ value. This includes:
 
 - the port name;
 - whether the port is provided or required;
-- its data type and value range;
+- its data type and value range; and
 - an optional initial value.
 
 APX supports scalar values, strings, arrays, and records. These definitions are
