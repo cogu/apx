@@ -18,9 +18,9 @@ Teams own their interfaces and can connect their software when it is ready,
 without a central signal database or a large up-front integration step.
 :::
 
-:::{grid-item-card} Cross boundaries
-Exchange signals between AUTOSAR ECUs, embedded targets, Linux and Windows
-applications, test tools, and scripts.
+:::{grid-item-card} Language and platform independent
+APX nodes can communicate through the same server regardless of their
+implementation language, operating system, or processor architecture.
 :::
 
 :::{grid-item-card} Keep the wire format small
@@ -50,7 +50,7 @@ signals without depending on each other's implementation details.
 
 ## Choose a path
 
-::::{grid} 1 2 2 3
+::::{grid} 1 2 2 2
 :gutter: 3
 
 :::{grid-item-card} Understand APX
@@ -59,6 +59,14 @@ signals without depending on each other's implementation details.
 
 Learn the core model: nodes, ports, the virtual signal bus, and how APX relates
 to AUTOSAR.
+:::
+
+:::{grid-item-card} Explore the design
+:link: design/design
+:link-type: doc
+
+See how interface ownership, asynchronous messaging, and loose coupling shape
+APX.
 :::
 
 :::{grid-item-card} Use APX
@@ -95,5 +103,5 @@ source code:
 Introduction/introduction
 specifications/specifications
 guides/guides
-internals/internals
+design/design
 ```
