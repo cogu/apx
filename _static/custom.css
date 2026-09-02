@@ -1,10 +1,140 @@
-/* Custom CSS styling for APX documentation */
+/* APX documentation theme additions */
 
-/* Style diagrams with a white card background, subtle padding, and soft rounded corners in Dark Mode */
-[data-theme="dark"] .content img {
-    background-color: #ffffff;
-    padding: 10px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-    box-sizing: border-box;
+:root {
+    --apx-teal: #147a64;
+    --apx-green: #5f8f2f;
+    --apx-cyan: #167f9a;
+    --apx-blue: #245f91;
+    --apx-orange: #b9650d;
+    --apx-surface: #f4f8f7;
+    --apx-border: #cbded9;
+    --apx-pattern: rgba(20, 122, 100, 0.08);
+}
+
+[data-theme="dark"] {
+    --apx-teal: #55c4a7;
+    --apx-green: #9bcb68;
+    --apx-cyan: #64c6de;
+    --apx-blue: #75add8;
+    --apx-orange: #f2ac53;
+    --apx-surface: #172522;
+    --apx-border: #34534c;
+    --apx-pattern: rgba(85, 196, 167, 0.09);
+}
+
+/* Give the home page an editorial lead without changing documentation pages. */
+body:has(.landing-highlights) article#furo-main-content > section > h1 {
+    margin-bottom: 0.25rem;
+    color: var(--apx-teal);
+    font-size: 4.5rem;
+    line-height: 1;
+}
+
+body:has(.landing-highlights) article#furo-main-content > section > section:first-of-type > h2 {
+    margin-top: 0;
+    border-bottom: 0;
+    font-size: 2rem;
+    font-weight: 500;
+}
+
+body:has(.landing-highlights) article#furo-main-content > section > section:first-of-type > h2 + p {
+    max-width: 42rem;
+    margin-bottom: 1.75rem;
+    font-size: 1.15rem;
+    line-height: 1.7;
+}
+
+.landing-highlights {
+    position: relative;
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--apx-border);
+}
+
+.landing-highlights::before {
+    position: absolute;
+    top: -4px;
+    left: 0;
+    width: 5rem;
+    height: 7px;
+    background: var(--apx-orange);
+    content: "";
+}
+
+.landing-highlights .sd-card,
+body:has(.landing-highlights) .sd-card {
+    border: 1px solid var(--apx-border);
+    border-radius: 6px;
+    background-color: var(--apx-surface);
+    box-shadow: none;
+}
+
+.landing-highlights .sd-col:nth-child(3n + 1) .sd-card {
+    border-top: 3px solid var(--apx-teal);
+}
+
+.landing-highlights .sd-col:nth-child(3n + 2) .sd-card {
+    border-top: 3px solid var(--apx-cyan);
+}
+
+.landing-highlights .sd-col:nth-child(3n) .sd-card {
+    border-top: 3px solid var(--apx-green);
+}
+
+.sd-card .sd-card-title {
+    font-size: 1rem;
+    letter-spacing: 0;
+}
+
+.landing-diagram-placeholder {
+    margin-block: 1.75rem;
+    border: 1px dashed var(--apx-border);
+    border-left: 4px solid var(--apx-cyan);
+    border-radius: 4px;
+    background-color: var(--apx-surface);
+    background-image: radial-gradient(var(--apx-pattern) 1px, transparent 1px);
+    background-size: 16px 16px;
+}
+
+.landing-diagram-placeholder .admonition-title {
+    border-bottom: 1px dashed var(--apx-border);
+    background-color: transparent;
+    color: var(--apx-cyan);
+}
+
+.landing-diagram-placeholder .admonition-title::before {
+    background-color: var(--apx-cyan);
+}
+
+/* Use these classes for paired draw.io or PlantUML SVG exports. */
+.diagram-dark {
+    display: none;
+}
+
+[data-theme="dark"] .diagram-light {
+    display: none;
+}
+
+[data-theme="dark"] .diagram-dark {
+    display: block;
+}
+
+@media (max-width: 67rem) {
+    body:has(.landing-highlights) article#furo-main-content > section > h1 {
+        font-size: 3.5rem;
+    }
+}
+
+@media (max-width: 40rem) {
+    body:has(.landing-highlights) article#furo-main-content > section > h1 {
+        font-size: 2.75rem;
+    }
+
+    body:has(.landing-highlights) article#furo-main-content > section > section:first-of-type > h2 {
+        font-size: 1.5rem;
+    }
+
+    body:has(.landing-highlights) article#furo-main-content > section > section:first-of-type > h2 + p {
+        font-size: 1.05rem;
+    }
 }

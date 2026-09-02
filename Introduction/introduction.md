@@ -9,63 +9,113 @@ components
 
 ## What is APX?
 
-APX (or AUTOSAR Port eXchange) is a software technology that enables [AUTOSAR](https://www.autosar.org/) software to communicate with non-AUTOSAR software.
+APX (**AUTOSAR Port eXchange**) lets AUTOSAR software components exchange
+signal data with software outside AUTOSAR, such as Linux HMIs, Python test
+tools, and embedded devices.
 
-In AUTOSAR, Software Components (SWCs) use ports to communicate with the outside world. There are two kinds of ports:
+An APX node declares the signals it **publishes** and the signals it
+**subscribes to**. APX carries two kinds of information:
 
-- Require-ports &#8212; used to receive data.
-- Provide-ports &#8212; used to send data.
+- **Port definitions** describe the names, data types, and initial values that
+  form a component's interface.
+- **Port values** contain the live signal data produced and consumed while the
+  system is running.
 
-```{mermaid} ../diagrams/SoftwareComponent.mmd
+The publish/subscribe relationship is implicit in the node definition. There
+is no separate subscription API or topic configuration. Because the definition
+travels with each participant, teams can develop and test components
+independently. If two definitions are compatible, the components can
+communicate without first updating a shared system configuration.
+
+## The node is the unit of integration
+
+An APX application exposes one or more **nodes**. Each node represents a
+component that publishes and subscribes to a defined set of signals.
+
+This model deliberately resembles an AUTOSAR software component. An APX node
+can therefore represent an AUTOSAR SWC outside the ECU without copying the
+SWC's internal implementation. APX calls a published signal a **provide port**
+and a subscription a **require port**.
+
+[Learn about components and ports](components.md){.sd-btn .sd-btn-outline-primary}
+
+## The APX virtual bus
+
+APX uses a client-server topology. Nodes connect to an APX server and send
+their definitions. The server matches publishers with subscribers by signal
+name and data type, then creates the corresponding routes.
+
+:::{admonition} APX virtual bus diagram
+:class: landing-diagram-placeholder
+
+Future illustration: several APX nodes surrounding a central virtual bus. A
+provided `VehicleSpeed` value from an AUTOSAR node is routed to matching require
+ports in a Python test tool and a desktop HMI.
+:::
+
+After matching is complete, each published value is sent to the nodes that
+subscribe to it. Although the physical topology is a star, the result behaves
+like a signal bus from the application's point of view.
+
+## Designed to cross system boundaries
+
+The APX protocols do not depend on a programming language, operating system,
+or processor architecture. Nodes can be implemented for environments ranging
+from small embedded targets to desktop applications.
+
+APX communication is message-based. A connection can therefore use any
+point-to-point transport that can carry APX messages. Gateways can forward the
+same messages between transports, allowing one virtual bus to span process,
+device, and network boundaries.
+
+Typical uses include:
+
+- connecting an AUTOSAR ECU to an HMI running on Linux;
+- exposing ECU signals to test automation written in Python;
+- joining embedded devices and desktop tools in a development network; and
+- integrating independently developed components during continuous testing.
+
+## APX Text describes the interface
+
+APX represents a node interface in a compact interface definition language
+known as **APX Text**. Only the information needed to exchange port data is
+included.
+
+```text
+APX/1.2
+N"VehicleStatus"
+P"VehicleSpeed"S:=0
+R"AmbientTemperature"c:=0
 ```
 
-APX allows you to distribute not only the port values but also the port definitions (names, datatypes, init value etc.) very efficiently over a network or serial bus. It works best over short distances (SPI buses, shared memory, local area networks, localhost etc.).
+The example declares a node named `VehicleStatus`. The `P` line publishes
+`VehicleSpeed`; the `R` line subscribes to `AmbientTemperature`. The type codes
+and value ranges give both peers enough information to agree on the binary
+representation of each value.
 
-It was originally designed for real-time streaming of HMI signals from AUTOSAR ECU to Linux system but it can have other use cases.
+APX Text can be generated from an AUTOSAR model, produced by a tool, or written
+directly. During connection setup, the definition is transferred as text. Live
+port values are then exchanged using compact binary data.
 
-## The APX Signal Network
+## From connection to live data
 
-APX uses a client-server setup where you first start the APX server. APX clients then connect to the server over a communication link that both the client and server supports (TCP/IP, UNIX socket, SPI Bus, Shared Memory etc.). Sometimes gateways are used between client and server, this is fine since APX is
-completley message based.
+An APX session has a short setup phase followed by continuous value exchange:
 
-Each connecting client begins its session with sending its port definitions (text) followed by port values (binary) to the server. The server then tries to create connectors (data routes) between Require and Provide ports with matching names and data types (formally known as *port signature matching*).
+1. A client connects to the APX server over a supported transport.
+2. The client sends the definitions and current values for its nodes.
+3. The server matches published signals with compatible subscriptions.
+4. The server creates routes between the matching ports.
+5. For the remainder of the session, new values flow over those routes as
+  compact binary updates while the clients remain connected.
 
-Once port connectors (routing tables) have been been created, new port values now flow freely from one client to another using a fast binary data protocol.
+The specifications define the formats and protocols involved in this process.
+Individual implementation repositories document how to build applications with
+their respective APIs and tools.
 
-Even though the network topology is a traditional star network (one server, many clients), the server routes the data so fast that in practice you can regard
-the network as a signal bus. This is called the *APX signal network*.
+## Continue reading
 
-![APX signal network](../images/APX_Signal_Network_Small.png)
-
-## One specification &#8212; Many Implementations
-
-APX has been designed from the ground up to work well; from the smallest embedded devices to full-scale Linux or Windows systems.
-
-**APX is:**
-
-- Language Independent &#8212; Possible to implement in any programming language.
-- Platform Independent &#8212; Run on x86, x64, ARM, Renesas RH850 derivates etc.
-- OS Independent &#8212; Run on Linux, Windows, AUTOSAR OS or without an OS.
-
-Any APX client that can connect to the server is part of the *APX signal network* no matter their underlying OS, programming language or method of communication.
-
-There is already a small number of native implementations available. The primary implementation is [c-apx](https://github.com/cogu/c-apx) (APX for C).
-This is the only one that contains an implementation of the server (and client). All other language ports just implements the client.
-
-## System Requirements
-
-APX requires a point-to-point communication link on which it can send and receive messages.
-
-Supported technologies (so far):
-
-- TCP/IP (Linux, Windows)
-- UNIX domain sockets (Linux)
-- Serial Peripheral Bus (SPI) (*source code not yet public*)
-- Shared memory bus (*source code not yet public*)
-
-The design of c-apx relies heavily on the concept of *dependency injection*. This means you can implement the low-level send/receive interface
-yourself and plug it into the runtime without modifying existing code base, trailing additions of new connection options.
-
-## Next
-
-- [Components and Ports](components.md)
+- [Components and Ports](components.md) explains the component model and port
+  compatibility.
+- [APX Specifications](../specifications/specifications.md) contains the formal
+  IDL, protocol, and virtual-machine specifications.
+- [User Guides](../guides/guides.md) contains task-oriented documentation.
