@@ -4,6 +4,18 @@ APX IDL is an Interface Definition Language (IDL) created and maintained by [Con
 
 Previously this language was known as *APX Text* but has since been renamed to APX IDL.
 
+## Terminology
+
+**APX IDL** is the language used to describe APX node interfaces. A document
+written in APX IDL is called an **APX definition file** and uses the `.apx` file
+extension.
+
+Each definition file describes one APX node. The `N` statement is the **node
+declaration**; the remaining statements declare the node's types and ports.
+
+The former name *APX Text* refers to the language, not to a separate file format.
+It is retained here only for historical context.
+
 ```{toctree}
 :maxdepth: 1
 :hidden:
