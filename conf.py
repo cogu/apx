@@ -20,7 +20,12 @@ extensions = [
 ]
 
 templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', '.venv', 'README.md']
+exclude_patterns = [
+    '_build',
+    '.venv',
+    'README.md',
+    'implementations/**',
+]
 
 # MyST Parser configuration
 myst_enable_extensions = [
