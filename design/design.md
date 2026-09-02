@@ -1,4 +1,4 @@
-# APX Design
+# Internal Design
 
 APX bridges two software paradigms. It retains the component-and-port model
 used in automotive software while applying integration principles associated

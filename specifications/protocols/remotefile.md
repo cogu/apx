@@ -1,462 +1,344 @@
 # RemoteFile v1.0
 
-RemoteFile is a message-based data protocol used by two sides in a point-to-point communication link (e.g. in a socket connection). It’s primary use case is to act as the application layer of an active APX session.
+RemoteFile is a binary, message-based protocol used to synchronize virtual memory regions across a point-to-point communication link (such as a TCP socket, UNIX domain socket, or shared memory). It acts as the application transport layer of an active APX session.
 
-After connection setup, the protocol is fully bidirectional (This is not a traditional request-response protocol) which means that data can be written at any time by both sides.
+```{note}
+For an architectural overview, memory model rationale, and high-level diagrams, see [The RemoteFile Protocol in Internal Design](../../design/remotefile.md).
+```
 
-Each side of the connection maintains a 1GB block of virtual memory. This is called the local address space. Each byte in this memory can be addressed as 0-1073741823 and is of unsigned type (value 0-255).
+## Memory Model & Addressing
 
-In addition to the local 1GB address space, each side also maintains another 1GB block of virtual memory. This is called the *remote memory*.
-The last 1KB (1024 bytes) of this address space is reserved and is called the *control area*.
+RemoteFile models communication as bidirectional memory synchronization. Each peer maintains two 1GB ($2^{30}$ bytes) virtual memory spaces:
 
-![Empty Memory Map](../../images/RemoteFile_Empty.png)
+| Memory Map | Address Range | Description |
+|:---|:---|:---|
+| **Local Map** | `0x00000000` – `0x3FFFFBFF` | Mapped files owned and published by the local endpoint (1,073,740,800 bytes). |
+| **Remote Map** | `0x00000000` – `0x3FFFFFFF` | Mirrored files published by the remote peer, including the control area (1,073,741,824 bytes). |
 
-The basic principle behind RemoteFile is about continous data synchronization (or data mirroring). When a byte is updated in local memory at end-point A, the change is reflected into the remote memory at end-point B (transmitted as a write operation from A to B). Likewise, any change in B's local memory is reflected to A's remote memory (transmitted as write operation from B to A).
+The last 1KB (1024 bytes) of the remote address space (`0x3FFFFC00` – `0x3FFFFFFF`) is reserved for the **Control Area**, which is used to exchange commands such as file announcements and open/close requests.
 
-Each side of the connection can only perform a single operation on the opened socket (or other point-to-point communication link).
+### Normative Addressing Rules
 
-| Operation | First Operand           | Second Operand | Third Operand       |
-|:----------|:------------------------|:---------------|:--------------------|
-| Write     | Start Address (integer) | Size (integer) | Buffer (byte-array) |
-
----
-**Example:**
-
-`Write(0x10,2,[5,6])`
-
-Writes two bytes at start address 0x10. After operation is complete the byte at address 16 contains value `5` and the next byte contains value `6`.
-
----
-
-## Files
-
-**Rule #1:**
-> A memory write to an address outside the control area is illegal, unless:
+**Rule 1 (Data Area Writes):**
+> A memory write targeting an address below `0x3FFFFC00` is illegal unless:
+> 1. A file exists at that address range.
+> 2. The file mapped at that address range has been previously opened by the remote peer.
 >
->  1. A file exists in that address range.
->  2. The file mapped in that range has been previousy opened by remote connection end-point.
+> Any write targeting an unopened file or exceeding file bounds must be ignored or treated as a protocol error.
 
-Directly after connection is established, the remote memory is empty except for the 1KB control area. Before write operations can take place a file must be mapped into the remote memory address space.
+**Rule 2 (Control Area Writes):**
+> A memory write targeting the Control Area (`0x3FFFFC00` – `0x3FFFFFFF`) is valid if and only if:
+> 1. The start address of the write is **exactly** `0x3FFFFC00`.
+> 2. The total length of the write does not exceed 1024 bytes.
 
-A file in RemoteFile is simply a byte-array that is mapped to a start-address somewhere in the 1GB memory range.
-
-Each file has:
-
-- A (file) name
-- A start-address (where it is mapped)
-- A size in bytes
-
-Creating a new file is done by sending a special command to the control area. The remote side (of the connection) processes the command and can at that point take a decision to either:
-
-- Open the file
-- Not open the file.
-
-In case the file is opened, the remote side sends a *File Open* command back to the local side of the connection containing the start-address of the file (The start-address is the unique identifier of a file).
-Local side then responds by sending the complete content of the file (done using a single write operation).
-After initial file write, only the deltas (or data changes) are transmitted (updating individual byte or bytes).
-
-## RemoteFile Messages
-
-All communication is message-based, each message has two components:
-
-1. A message header, containing the length of the message.
-2. A message body, containing the message data (also known as message payload).
-
-Since RemoteFile is designed to be used on any communication link it does not officially define a message header since there usually exists protocols for this already.
-
-In case you are communicating over a socket (or other stream-based communication) you can use [NumHeader](numheader.md) as the message header protocol.
-If you plan to use RemoteFile on TCP then NumHeader32 is the recommended choice.
-
-## RemoteFile Greeting Header
-
-The very first message a client sends to server is the greeting. It's similar in concept to the HTTP header.
-It consists of a single message (see above) where the payload is a multi-line text string. (This is the only text message defined in the protocol.)
-
-The first line of the message is:
-
-`RMFP/1.0\n`
-
-After the first line, a set of key-value attributes can be set by the client (Similar to MIME-headers)
-Each line of the message ends with a single newline character (unlike TCP which uses `\r\n`).
-In addition, the message must end with a single new-line character.
-
-**Example:**
-
-`RMFP/1.0\n\n`
-
-The total length of the header message must not be longer than 127 bytes. This is because the short-form of both NumHeader16 and NumHeader32 are
-identical. This means the the message header (message size) can be a single byte in both cases.
-What NumHeader format is actually used by the client is specified in the greeting header.
-
-### Greeting attributes
-
-#### NumHeader Attribute
-
-The NumHeader attribute specifies if 16-bit or 32-bit header is being used on consecutive messages from the client.
-
-**Example:**
-
-`RMFP/1.0\nNumHeader: 32\n\n`
-
-## Binary Messages
-
-After the greeting header is sent/received, the only allowed operation is writing data into remote memory using binary messages.
-
-Each write message contains two parts (of the message payload):
-
-1. Address Header (integer)
-2. Data Buffer (byte-array)
-
-The length of the data buffer is determined by subtracting the length of the address header from the total message length (extracted from the message header).
-
-When combined with the NumHeader protocol there are four different scenarios that can occur.
-
-| Scenario     | NumHeader Format | Address Format | When to Use                                          |
-|:-------------|:-----------------|:---------------|:-----------------------------------------------------|
-| Short & Low  | Short            | Low            | Writing 0-127 bytes to address 0-16383               |
-| Long & Low   | Long             | Low            | Writing 128 bytes or more to address 0-16383         |
-| Short & High | Short            | High           | Writing 0-127 bytes to address 16384 or higher       |
-| Long & High  | Long             | High           | Writing 128 bytes or more to address 16384 or higher |
-
-## The Address Header
-
-The address header can have two forms:
-
-1. Low — Uses 2 bytes
-2. High — USes 4 bytes
-
-**AddressHeader - Low address form (0-16383)**:
-
-<table>
-  <thead>
-    <tr>
-      <th colspan="3">Byte 0</th>
-      <th colspan="1">Byte 1</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>BIT 7</td>
-      <td>BIT 6</td>
-      <td>BITS 5-0</td>
-      <td>BITS 7-0</td>
-    </tr>
-    <tr>
-      <td>HIGH_BIT</td>
-      <td>MORE_BIT</td>
-      <td colspan="2">ADDRESS</td>
-    </tr>
-    <tr>
-      <td>0</td>
-      <td>0-1</td>
-      <td colspan="2">0-16383</td>
-    </tr>
-  </tbody>
-</table>
-
-**AddressHeader - High address form (0-0x3FFFFFFF)**:
-
-<table>
-  <thead>
-    <tr>
-      <th colspan="3">Byte 0</th>
-      <th>Byte 1</th>
-      <th>Byte 2</th>
-      <th>Byte 3</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>BIT 7</td>
-      <td>BIT 6</td>
-      <td>BITS 5-0</td>
-      <td>BITS 7-0</td>
-      <td>BITS 7-0</td>
-      <td>BITS 7-0</td>
-    </tr>
-    <tr>
-      <td>HIGH_BIT</td>
-      <td>MORE_BIT</td>
-      <td colspan="4">ADDRESS</td>
-    </tr>
-    <tr>
-      <td>1</td>
-      <td>0-1</td>
-      <td colspan="2">16384-1073741823</td>
-    </tr>
-  </tbody>
-</table>
-
-## AddressHeader Flags
-
-**HIGH_BIT**
-
-When set to 0, the AddressHeader occupies 2 bytes and uses a 14-bit address range (0-16383).
-
-When set to 1, the AddressHeader occupies 4 bytes and uses a 30-bit address range (16384-1073741823).
-
-In both cases the address value is encoded as big endian.
-
----
-**NOTE**
-
-Files whose data change frequently should be mapped to the first 16KB range.
-Files that change rarely (or not at all) can be mapped anywhere else.
+**Rule 3 (Data Synchronization):**
+> As long as an opened file remains active, any local modification to that file's memory buffer must be immediately transmitted to the remote peer as a binary write command covering the modified byte range.
 
 ---
 
-**MORE_BIT**
+## Wire Framing & Transport
 
-This is used for message fragmentation. The bit is set to 1 as long as there is more data to send (from the same write operation).
-The very last packet in the write operation should have its more bit set to zero to mark end of operation.
+RemoteFile is transport-agnostic and relies on point-to-point streaming connections. On stream-oriented transports (such as TCP or UNIX domain sockets), message framing must be provided by [NumHeader](numheader.md).
 
-Upper application layers should not be notified until an entire write operation has been received (MORE_BIT=0).
+For TCP connections, **NumHeader32** is the recommended framing protocol.
 
-## RemoteFile Header Examples
+Each transmitted message consists of:
+1. **Message Header**: Length prefix encoded using NumHeader (1, 2, or 4 bytes).
+2. **Message Payload**: The message body (greeting text or binary write payload).
 
-### Short Length & Low Address
+---
 
-| Byte | Protocol       | Meaning              |
-|:-----|:---------------|:---------------------|
-| 0    | NumHeader16/32 | Message Header       |
-| 1    | RemoteFile     | Address Header (MSB) |
-| 2    | RemoteFile     | Address Header (LSB) |
+## Greeting Handshake
 
-### Long Length & Low Address
+Upon establishing a physical connection, the client must send a **Greeting Header** as the very first message. The greeting is a multi-line text string (the only text-based message in the protocol) formatted similarly to an HTTP/MIME header.
 
-**NumHeader16**
+### Greeting Format
 
-| Byte | Protocol       | Meaning              |
-|:-----|:---------------|:---------------------|
-| 0    | NumHeader16    | Message Header (MSB) |
-| 1    | NumHeader16    | Message Header (LSB) |
-| 2    | RemoteFile     | Address Header (MSB) |
-| 3    | RemoteFile     | Address Header (LSB) |
+- The first line must be the protocol identifier: `RMFP/1.0\n`
+- Subsequent lines contain optional key-value attributes formatted as `Key: Value\n`
+- The greeting message must terminate with an additional newline (`\n`).
 
-**NumHeader32**
+**Example Greeting:**
+```text
+RMFP/1.0\nNumHeader: 32\n\n
+```
 
-| Byte | Protocol       | Meaning              |
-|:-----|:---------------|:---------------------|
-| 0    | NumHeader32    | Message Header (MSB) |
-| 1    | NumHeader32    | Message Header       |
-| 2    | NumHeader32    | Message Header       |
-| 3    | NumHeader32    | Message Header (LSB) |
-| 4    | RemoteFile     | Address Header (MSB) |
-| 5    | RemoteFile     | Address Header (LSB) |
+### Greeting Constraints
 
-### Short Length & High Address
+- **Maximum Length**: The total length of the greeting message must not exceed 127 bytes. This ensures that the message length fits within the 1-byte short form of both NumHeader16 and NumHeader32.
+- **Line Endings**: Every line must end with a single UNIX newline (`\n`, `0x0A`).
 
-| Byte | Protocol       | Meaning              |
-|:-----|:---------------|:---------------------|
-| 0    | NumHeader16/32 | Message Header       |
-| 1    | RemoteFile     | Address Header (MSB) |
-| 2    | RemoteFile     | Address Header       |
-| 3    | RemoteFile     | Address Header       |
-| 4    | RemoteFile     | Address Header (LSB) |
+### Greeting Attributes
 
-### Long Length & High Address
+| Attribute | Format | Description |
+|:---|:---|:---|
+| `NumHeader` | `16` or `32` | Declares the NumHeader framing variant used for all subsequent messages from the client. |
 
-**NumHeader16**
+---
 
-| Byte | Protocol       | Meaning              |
-|:-----|:---------------|:---------------------|
-| 0    | NumHeader16    | Message Header (MSB) |
-| 1    | NumHeader16    | Message Header (LSB) |
-| 2    | RemoteFile     | Address Header (MSB) |
-| 3    | RemoteFile     | Address Header       |
-| 4    | RemoteFile     | Address Header       |
-| 5    | RemoteFile     | Address Header (LSB) |
+## Binary Data Messages
 
+After the greeting handshake completes, all communication consists exclusively of binary write messages.
 
-**NumHeader32**
+Each write message payload contains:
+1. **Address Header**: Encodes the target start address and fragmentation flags (2 or 4 bytes).
+2. **Data Buffer**: The raw payload bytes to write into remote memory.
 
-| Byte | Protocol       | Meaning              |
-|:-----|:---------------|:---------------------|
-| 0    | NumHeader32    | Message Header (MSB) |
-| 1    | NumHeader32    | Message Header       |
-| 2    | NumHeader32    | Message Header       |
-| 3    | NumHeader32    | Message Header (LSB) |
-| 4    | RemoteFile     | Address Header (MSB) |
-| 5    | RemoteFile     | Address Header       |
-| 6    | RemoteFile     | Address Header       |
-| 7    | RemoteFile     | Address Header (LSB) |
+$$\text{Data Buffer Length} = \text{Total Message Payload Length} - \text{Address Header Length}$$
 
-## The Control Area
+### AddressHeader Formats
 
-The last 1KB (1024 bytes) of the 1GB address range is a special control area. Writing data here means you are sending control commands
-to the remote side (the owner of that memory area). The memory range of this area is `0x3FFFFC00 - 0x3FFFFFFF`.
+The AddressHeader comes in two forms depending on the target memory address:
 
-This special control area is used for:
+**Low Address Form (0 – 16,383):**
+Occupies 2 bytes. Used for fast, compact updates to frequently changing data buffers.
 
-* Creating and revoking files.
-* Opening and closing files.
+```text
++-------------------------------+-----------------------+
+|             Byte 0            |         Byte 1        |
++-------+-------+---------------+-----------------------+
+| Bit 7 | Bit 6 |    Bits 5-0   |        Bits 7-0       |
++-------+-------+---------------+-----------------------+
+|   0   |   M   |  Address MSB  |      Address LSB      |
++-------+-------+---------------+-----------------------+
+    ^       ^   \_______________________________________/
+    |       |                       |
+HIGH_BIT=0  |           14-bit Address (0 - 16,383)
+            |
+        MORE_BIT (0 = final packet, 1 = more packets follow)
+```
+
+| Field | Bits | Value Range | Description |
+|:---|:---|:---|:---|
+| **HIGH_BIT** | Byte 0, Bit 7 | `0` | Specifies 2-byte Low Address form |
+| **MORE_BIT** | Byte 0, Bit 6 | `0` or `1` | Fragmentation flag (`1` = more packets follow) |
+| **Address** | Byte 0 (Bits 5–0) + Byte 1 (Bits 7–0) | `0`–`16,383` | 14-bit big-endian start address |
+
+**High Address Form (16,384 – 1,073,741,823):**
+Occupies 4 bytes. Used for larger address ranges and the Control Area.
+
+```text
++-------------------------------+-----------+-----------+-----------+
+|             Byte 0            |   Byte 1  |   Byte 2  |   Byte 3  |
++-------+-------+---------------+-----------+-----------+-----------+
+| Bit 7 | Bit 6 |    Bits 5-0   |  Bits 7-0 |  Bits 7-0 |  Bits 7-0 |
++-------+-------+---------------+-----------+-----------+-----------+
+|   1   |   M   |                      Address (30-bit)             |
++-------+-------+---------------------------------------------------+
+    ^       ^   \___________________________________________________/
+    |       |                             |
+HIGH_BIT=1  |             30-bit Address (0 - 1,073,741,823)
+            |
+        MORE_BIT (0 = final packet, 1 = more packets follow)
+```
+
+| Field | Bits | Value Range | Description |
+|:---|:---|:---|:---|
+| **HIGH_BIT** | Byte 0, Bit 7 | `1` | Specifies 4-byte High Address form |
+| **MORE_BIT** | Byte 0, Bit 6 | `0` or `1` | Fragmentation flag (`1` = more packets follow) |
+| **Address** | Bytes 0–3 (Bits 29–0) | `16,384`–`1,073,741,823` | 30-bit big-endian start address |
+
+### AddressHeader Flags
+
+- **`HIGH_BIT` (Bit 7 of Byte 0)**:
+  - `0`: Low address form (2-byte header, 14-bit address range `0`–`16,383`).
+  - `1`: High address form (4-byte header, 30-bit address range `16,384`–`1,073,741,823`).
+- **`MORE_BIT` (Bit 6 of Byte 0)**:
+  - Used for message fragmentation. Set to `1` if additional data packets follow for the same logical write operation.
+  - Set to `0` on the final packet to signal the end of the write operation.
+  - Upper application layers must not be notified until the complete write operation has been received (`MORE_BIT = 0`).
+
+### Framing Scenarios
+
+| Scenario | NumHeader Format | Address Format | Use Case |
+|:---|:---|:---|:---|
+| **Short & Low** | Short (1 byte) | Low (2 bytes) | Writing 0–127 bytes to address 0–16,383 |
+| **Long & Low** | Long (2 or 4 bytes) | Low (2 bytes) | Writing $\ge 128$ bytes to address 0–16,383 |
+| **Short & High** | Short (1 byte) | High (4 bytes) | Writing 0–127 bytes to address $\ge 16,384$ |
+| **Long & High** | Long (2 or 4 bytes) | High (4 bytes) | Writing $\ge 128$ bytes to address $\ge 16,384$ |
+
+### Byte Layout Examples
+
+**Short Length & Low Address (1-byte NumHeader + 2-byte AddressHeader):**
+
+| Byte | Protocol | Meaning |
+|:---:|:---|:---|
+| 0 | NumHeader16/32 | Message Header (Length) |
+| 1 | RemoteFile | Address Header (MSB) |
+| 2 | RemoteFile | Address Header (LSB) |
+| 3..N | Payload | Data Buffer |
+
+**Long Length & Low Address (4-byte NumHeader32 + 2-byte AddressHeader):**
+
+| Byte | Protocol | Meaning |
+|:---:|:---|:---|
+| 0–3 | NumHeader32 | Message Header (31-bit Big-Endian length) |
+| 4 | RemoteFile | Address Header (MSB) |
+| 5 | RemoteFile | Address Header (LSB) |
+| 6..N | Payload | Data Buffer |
+
+**Short Length & High Address (1-byte NumHeader + 4-byte AddressHeader):**
+
+| Byte | Protocol | Meaning |
+|:---:|:---|:---|
+| 0 | NumHeader16/32 | Message Header (Length) |
+| 1–4 | RemoteFile | Address Header (30-bit Big-Endian address, `HIGH_BIT = 1`) |
+| 5..N | Payload | Data Buffer |
+
+**Long Length & High Address (4-byte NumHeader32 + 4-byte AddressHeader):**
+
+| Byte | Protocol | Meaning |
+|:---:|:---|:---|
+| 0–3 | NumHeader32 | Message Header (31-bit Big-Endian length) |
+| 4–7 | RemoteFile | Address Header (30-bit Big-Endian address, `HIGH_BIT = 1`) |
+| 8..N | Payload | Data Buffer |
+
+---
 
 ## Control Commands
 
-The start address is always `0x3FFFFC00` which is the first byte of the area. The format and length of each control command is found below.
-Note that the length of any command must never exceed 1024 bytes.
+Control commands are issued by writing binary command structures to the Control Area at start address `0x3FFFFC00`.
 
-In this version of the protocol most integers are encoded as little endian (will be more generic in a future version).
-When an integer is encoded as little endian the type ends with the letters "LE".
-As an example, the designation `U32LE` means unsigned 32-bit integer encoded as little endian.
+Command payload fields use **Little-Endian (LE)** byte order for multi-byte integers.
 
-### CmdType
+### Command Identifiers (`CmdType`)
 
-The command type is a 32-bit unsigned integer which uniquely identifes what type of command has been encoded.
+The first 4 bytes (`U32LE`) of any control command payload identify the command:
 
-| CmdType                | Value |
-|:-----------------------|:------|
-| RMF_CMD_ACK            | 0     |
-| RMF_CMD_NACK           | 1     |
-| *Reserved*             | 2     |
-| RMF_CMD_FILE_INFO      | 3     |
-| RMF_CMD_REVOKE_FILE    | 4     |
-| RMF_CMD_HEARTBEAT_RQST | 5     |
-| RMF_CMD_HEARTBEAT_RSP  | 6     |
-| RMF_CMD_PING_RQST      | 7     |
-| RMF_CMD_PING_RSP       | 8     |
-| *Reserved*             | 9     |
-| RMF_CMD_FILE_OPEN      | 10    |
-| RMF_CMD_FILE_CLOSE     | 11    |
+| `CmdType` Constant | Value | Description |
+|:---|:---:|:---|
+| `RMF_CMD_ACK` | 0 | Command Acknowledged |
+| `RMF_CMD_NACK` | 1 | Command Negative Acknowledged |
+| *Reserved* | 2 | Reserved |
+| `RMF_CMD_FILE_INFO` | 3 | Publish / announce a file |
+| `RMF_CMD_REVOKE_FILE` | 4 | Revoke / unmap a published file |
+| `RMF_CMD_HEARTBEAT_RQST` | 5 | Heartbeat Request |
+| `RMF_CMD_HEARTBEAT_RSP` | 6 | Heartbeat Response |
+| `RMF_CMD_PING_RQST` | 7 | Ping Request with timestamp |
+| `RMF_CMD_PING_RSP` | 8 | Ping Response with timestamp |
+| *Reserved* | 9 | Reserved |
+| `RMF_CMD_FILE_OPEN` | 10 | Open a published file |
+| `RMF_CMD_FILE_CLOSE` | 11 | Close an opened file |
 
-### Acknowledge Command
+---
 
-The acknowledge command can be used as a response to previously received command.
+### Acknowledge Commands
 
-| Offset | Name     | Encoding | Value        | Description  |
-|:-------|:---------|:---------|:-------------|:-------------|
-| 0      | CmdType  | U32LE    | RMF_CMD_ACK  | Command Type |
+**Acknowledge (`RMF_CMD_ACK`):**
+Sent as a positive response to a previously received command.
 
-### Negative Acknowledge Command
+| Offset | Field | Type | Value | Description |
+|:---:|:---|:---:|:---|:---|
+| 0 | `CmdType` | `U32LE` | `0` (`RMF_CMD_ACK`) | Command Identifier |
 
-The negative acknowledge command can be used as a response to previously received command.
+**Negative Acknowledge (`RMF_CMD_NACK`):**
+Sent as an error response to a previously received command.
 
-| Offset | Name     | Encoding | Value         | Description  |
-|:-------|:---------|:---------|:--------------|:-------------|
-| 0      | CmdType  | U32LE    | RMF_CMD_NACK  | Command Type |
+| Offset | Field | Type | Value | Description |
+|:---:|:---|:---:|:---|:---|
+| 0 | `CmdType` | `U32LE` | `1` (`RMF_CMD_NACK`) | Command Identifier |
 
-### FileInfo Command
+---
 
-Both sides of the communication link sends zero or more FileInfo commands (one per file) informing the other side which files it currently has available (mapped into memory). The length of the struct is 48 bytes + the length of the file name which is the last part of the struct.
+### File Management Commands
 
-Since the longest message that can be sent to the special file area is 1024 bytes, the longest possible file name is 975 bytes (1 byte reserved for the null terminator).
+**FileInfo Command (`RMF_CMD_FILE_INFO`):**
+Announces that a file is available and mapped at a specific start address in the sender's local memory map.
 
-| Offset | Name         | Encoding | Value              | Description                           |
-|:-------|:-------------|:---------|:-------------------|:--------------------------------------|
-| 0      | CmdType      | U32LE    | RMF_CMD_FILE_INFO  | Command Type                          |
-| 4      | StartAddress | U32LE    | 0..(2^30)-1025     | Start Address of file                 |
-| 8      | FileSize     | U32LE    | 0-2^30-1024        | Maximum size of file                  |
-| 12     | FileType     | U16LE    | 0-2                | Type of file, see below               |
-| 14     | DigestType   | U16LE    | 0-2                | Type of checksum, see below           |
-| 16     | DigestData   | U8[32]   | 0-255              | Placeholder array for checksum        |
-| 48     | FileName     | String   | `[0-9a-zA-Z_]+`    | File name as a null-terminated string |
+| Offset | Field | Type | Value Range | Description |
+|:---:|:---|:---:|:---|:---|
+| 0 | `CmdType` | `U32LE` | `3` (`RMF_CMD_FILE_INFO`) | Command Identifier |
+| 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of the file |
+| 8 | `FileSize` | `U32LE` | `0` – `0x3FFFFC00` | Maximum size of the file in bytes |
+| 12 | `FileType` | `U16LE` | `0` – `2` | File type descriptor (see below) |
+| 14 | `DigestType` | `U16LE` | `0` – `2` | Checksum algorithm (see below) |
+| 16 | `DigestData` | `UINT8[32]` | Bytes | 32-byte digest payload (zero-padded if unused) |
+| 48 | `FileName` | String | ASCII | Null-terminated file name string |
 
-#### FileType
+The total size of the `FileInfo` structure is $48 + \text{strlen(FileName)} + 1$ bytes. Because the maximum command length is 1024 bytes, the maximum file name length is **975 bytes** (excluding the null terminator).
 
-| Value | Meaning                     |
-|:------|:----------------------------|
-| 0     | FixedFile (default)         |
-| 1     | DynamicFile                 |
-| 2     | FileStream                  |
+**FileType Values:**
 
-#### DigestType
+| Value | Identifier | Description |
+|:---:|:---|:---|
+| 0 | `FixedFile` | Fixed-size memory region (default) |
+| 1 | `DynamicFile` | Dynamically sized file |
+| 2 | `FileStream` | Streaming FIFO data |
 
-| Value | Meaning                              |
-|:------|:-------------------------------------|
-| 0     | NoDigest                             |
-| 1     | SHA-1 (as generated by sha1sum)      |
-| 2     | SHA-256 (as generated by sha256sum)  |
+**DigestType Values:**
 
-**Example:**
+| Value | Identifier | Description |
+|:---:|:---|:---|
+| 0 | `NoDigest` | No checksum provided |
+| 1 | `SHA-1` | 20-byte SHA-1 hash |
+| 2 | `SHA-256` | 32-byte SHA-256 hash |
 
-| Offset | Name         | Value             | Serialized Data      |
-|:-------|:-------------|:------------------|:---------------------|
-| 0      | CmdType      | RMF_CMD_FILE_INFO | `"\x03\x00\x00\x00"` |
-| 4      | StartAddress | 0x10000           | `"\x00\x00\x01\x00"` |
-| 8      | FileSize     | 1000              | `"\xe8\x03\x00\x00"` |
-| 12     | FileType     | FixedFile         | `"\x00\x00"`         |
-| 14     | DigestType   | NoDigest          | `"\x00\x00"`         |
-| 16     | DigestData   | [0, 0, ..., 0]    | `"\x00\x00..\x00"`   |
-| 48     | FileName     | "File1.txt"       | `"File1.txt\0"`      |
+**Multiple FileInfo Packing:**
+Multiple `FileInfo` structures may be packed into a single 1024-byte control write. When packing multiple structures:
+- Only the **first structure** includes the 4-byte `CmdType` field.
+- Subsequent structures begin immediately after the null terminator of the preceding file name (starting directly with `StartAddress`).
 
+**FileRevoke Command (`RMF_CMD_REVOKE_FILE`):**
+Unmaps a previously announced file. If the remote peer currently has the file open, it is automatically closed.
 
-#### Multiple FileInfo structs
+| Offset | Field | Type | Value | Description |
+|:---:|:---|:---:|:---|:---|
+| 0 | `CmdType` | `U32LE` | `4` (`RMF_CMD_REVOKE_FILE`) | Command Identifier |
+| 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of the file to revoke |
 
-It's allowed to send multiple FileInfo structs in a single control command (as long as the 1024 limit is not exceeded).
-In this case, only the first struct holds the CmdType field meaning that StartAddress of the next file is found right after the null-terminator of the file name of previous file.
+---
 
-Note that support for multiple FileInfos is not yet implemented in [c-apx](https://github.com/cogu/c-apx) as of v0.3.0.
+### Diagnostic Commands
 
-### FileRevoke Command
+Used to verify transport liveness, measure latency, and test route paths.
 
-The file revoke command is the opposite of FileInfo. It unmaps the file from the memory map. If remote side had the file open it's automatically closed.
+**Heartbeat Request (`RMF_CMD_HEARTBEAT_RQST`):**
 
-| Offset | Name          | Encoding | Value           | Description                                         |
-|:-------|:--------------|:---------|:----------------|:----------------------------------------------------|
-| 0      | CmdType       | U32LE    | RMF_CMD_NACK    | Command Type                                        |
-| 4      | StartAddress  | U32LE    | 0..(2^30)-1025  | File Address (from previously sent FileInfo struct) |
+| Offset | Field | Type | Value | Description |
+|:---:|:---|:---:|:---|:---|
+| 0 | `CmdType` | `U32LE` | `5` (`RMF_CMD_HEARTBEAT_RQST`) | Command Identifier |
 
-### Heartbeat Commands
+**Heartbeat Response (`RMF_CMD_HEARTBEAT_RSP`):**
 
-A client can check if the underlying connection (e.g. socket) is alive by sending a heartbeat request to server.
-The server then replies back with a heartbeat response.
+| Offset | Field | Type | Value | Description |
+|:---:|:---|:---:|:---|:---|
+| 0 | `CmdType` | `U32LE` | `6` (`RMF_CMD_HEARTBEAT_RSP`) | Command Identifier |
 
-**Request:**
+**Ping Request (`RMF_CMD_PING_RQST`):**
 
-| Offset | Name     | Encoding | Value                   | Description  |
-|:-------|:---------|:---------|:------------------------|:-------------|
-| 0      | CmdType  | U32LE    | RMF_CMD_HEARTBEAT_RQST  | Command Type |
+| Offset | Field | Type | Value Range | Description |
+|:---:|:---|:---:|:---|:---|
+| 0 | `CmdType` | `U32LE` | `7` (`RMF_CMD_PING_RQST`) | Command Identifier |
+| 4 | `StartAddress` | `U32LE` | Address or `0xFFFFFFFF` | Target file address (`0xFFFFFFFF` for general peer) |
+| 8 | `TimeStampSec` | `U32LE` | `0` – $2^{32}-1$ | Origin timestamp seconds |
+| 12 | `TimeStampMilliSec` | `U32LE` | `0` – $2^{32}-1$ | Origin timestamp milliseconds |
 
+**Ping Response (`RMF_CMD_PING_RSP`):**
+Echoes back the fields from the corresponding `Ping Request`.
 
-**Response:**
+| Offset | Field | Type | Value Range | Description |
+|:---:|:---|:---:|:---|:---|
+| 0 | `CmdType` | `U32LE` | `8` (`RMF_CMD_PING_RSP`) | Command Identifier |
+| 4 | `StartAddress` | `U32LE` | Address | Echoed target file address |
+| 8 | `TimeStampSec` | `U32LE` | `0` – $2^{32}-1$ | Echoed timestamp seconds |
+| 12 | `TimeStampMilliSec` | `U32LE` | `0` – $2^{32}-1$ | Echoed timestamp milliseconds |
 
-| Offset | Name     | Encoding | Value                  | Description  |
-|:-------|:---------|:---------|:-----------------------|:-------------|
-| 0      | CmdType  | U32LE    | RMF_CMD_HEARTBEAT_RSP  | Command Type |
+---
 
+### File Open & Close Commands
 
-### Ping Commands
+**FileOpen Command (`RMF_CMD_FILE_OPEN`):**
+Requests to open a remote file announced via a preceding `FileInfo` command.
 
-A ping command is a more sophisticated form of heartbeat. The initator takes a timestamp which is sent in request.
-The same timestamp is echoed back in the response. In addition, a specific (memory mapped) file can be picked
-as the target of the ping. This can be used in a future implementation to relay pings from client to client.
-Use the special file address 0xFFFFFFFF if you don't want to target a specific file.
+| Offset | Field | Type | Value Range | Description |
+|:---:|:---|:---:|:---|:---|
+| 0 | `CmdType` | `U32LE` | `10` (`RMF_CMD_FILE_OPEN`) | Command Identifier |
+| 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of the remote file to open |
 
-**Request:**
+**FileClose Command (`RMF_CMD_FILE_CLOSE`):**
+Closes a previously opened remote file.
 
-| Offset | Name              | Encoding | Value             | Description            |
-|:-------|:------------------|:---------|:------------------|:-----------------------|
-| 0      | CmdType           | U32LE    | RMF_CMD_PING_RQST | Command Type           |
-| 4      | StartAddress      | U32LE    | 0..(2^30)-1025    | File Address           |
-| 8      | TimeStampSec      | U32LE    | 0..2^32-1         | Timestamp seconds      |
-| 12     | TimeStampMilliSec | U32LE    | 0..2^32-1         | Timestamp milliseconds |
-
-**Response:**
-
-| Offset | Name              | Encoding | Value             | Description            |
-|:-------|:------------------|:---------|:------------------|:-----------------------|
-| 0      | CmdType           | U32LE    | RMF_CMD_PING_RSP  | Command Type           |
-| 4      | StartAddress      | U32LE    | 0..(2^30)-1025    | File Address           |
-| 8      | TimeStampSec      | U32LE    | 0..2^32-1         | Timestamp seconds      |
-| 12     | TimeStampMilliSec | U32LE    | 0..2^32-1         | Timestamp milliseconds |
-
-### File Open/Close Commands
-
-After a FileInfo struct has been received you can choose to open the file by sending back a file open command.
-The file to open is identified by the start address from previously received FileInfo.
-
-**FileOpen:**
-
-| Offset | Name          | Encoding | Value             | Description       |
-|:-------|:--------------|:---------|:------------------|:------------------|
-| 0      | CmdType       | U32LE    | RMF_CMD_FILE_OPEN | Command Type      |
-| 4      | StartAddress  | U32LE    | 0..(2^30)-1025    | File Address      |
-
-**FileClose:**
-
-| Offset | Name          | Encoding | Value              | Description       |
-|:-------|:--------------|:---------|:-------------------|:------------------|
-| 0      | CmdType       | U32LE    | RMF_CMD_FILE_CLOSE | Command Type      |
-| 4      | StartAddress  | U32LE    | 0..(2^30)-1025     | File Address      |
-
-It's an illegal operation to open/close a file before corresponding FileInfo struct has been received.
+| Offset | Field | Type | Value Range | Description |
+|:---:|:---|:---:|:---|:---|
+| 0 | `CmdType` | `U32LE` | `11` (`RMF_CMD_FILE_CLOSE`) | Command Identifier |
+| 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of the remote file to close |

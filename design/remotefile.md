@@ -1,139 +1,89 @@
 # The RemoteFile Protocol
 
-Communication between APX clients and server is actually done using a lower-level protocol called *RemoteFile*.
-The world of APX is modelled on top of the RemoteFile protocol before it is sent on the wire. Once the RemoteFile
-message has been received on the other side of the connection it is immediately modelled back into APX.
+Communication between APX clients and servers is built on top of a lower-level, transport-agnostic protocol called **RemoteFile**.
 
-This is an introductory text to the RemoteFile Protocol.
+While APX presents a high-level model of nodes, provide ports, and require ports, RemoteFile provides the underlying mechanism that mirrors data across network and process boundaries in real time.
 
-## Connection End-Points
+```{note}
+For full binary packet layouts, command opcodes, and wire framing, see the [RemoteFile v1.0 Specification](../specifications/protocols/remotefile.md).
+```
 
-The key to the RemoteFile protocol is to keep sections of memory in synch with each other over a point-to-point connection. In essence, what we do is to mirror data changes taking place on one side of the connection to the other side. This is done in a bidirectional fashion allowing us to keep data in
-synch at all times.
+## Why Memory-Mapped Synchronization?
 
-In order to describe how this work we will introduce some new terms. First, the two sides of a bidirectional connection is called End-Points. In this text, we will use the terms *End-Point A* and *End-Point B* to differentiate between the two.
+Most distributed systems rely on either remote procedure calls (RPC) or message queues. In automotive and real-time embedded environments, these models introduce overhead:
 
-![Connection End-Points](../images/RemoteFile_EndPoints.png)
+- **RPC models** require request-response round trips and dynamic marshalling/unmarshalling on both sides.
+- **Message queue models** typically allocate dynamic buffers per message and send complete signal packets on every update.
 
-## Files
+RemoteFile takes a different approach: **continuous memory synchronization**. Each endpoint treats the connection as a shared, virtual memory space. When a node updates a signal:
 
-In the context of RemoteFile (and consequently APX) we define a *file* as being a byte-array with some extra properties:
+1. The new value is written to a deterministic offset in the local memory map.
+2. A delta write message containing only the modified byte range is sent over the wire.
+3. The receiving endpoint writes those bytes directly into its mirrored memory map at the same offset.
 
-1. Name (string).
-2. Length (unsigned integer).
-3. StartAddress (unsigned integer).
+This makes communication inherently asynchronous, bidirectional, and lightweight.
 
-Additionally, the data in the byte-array must be contigous (no memory holes allowed).
 
-This definition of a file has no relation to files in a file system. For the rest of this text, when we use the word *file* we
-mean the definition seen above.
+## The Virtual Memory Abstraction
 
-## Memory Mapping
+Every RemoteFile connection maintains two 1GB virtual memory spaces:
 
-Both connection end-points continously maintain two 1GB memory maps. One is used for locally created files while the other is used for remotely created files.
-All events that takes place in the local memory map at one end-point is synched to the remote memory map at the other end-point.
+- **Local Memory Map**: Contains files and signal buffers created and published by the local endpoint.
+- **Remote Memory Map**: Contains files and signal buffers published by the remote peer, plus a dedicated **Control Area**.
 
 ![Empty Memory Map](../images/RemoteFile_Empty.png)
 
-The memory maps are obviously virtual memory only. otherwise we couldn't be using this technique on small embedded devices as was originally intended.
-Remember that the files created in the map needs to be fully contigous (containing no memory holes), however, it is important to allow memory holes *between* the files.
+### Sparse Virtual Memory on Embedded Devices
 
-This means we only need to back the files themselves by physical memory. In a typical APX session only a few KB is used while leaving the rest of the memory
-map with empty space.
+The 1GB address space is purely virtual addressing. Small microcontrollers and embedded targets do not need 1GB of physical RAM:
 
-### Writing to the memory map
+- Endpoints only allocate physical RAM for the specific files they create or open (typically a few hundred bytes to several kilobytes per APX session).
+- Unused addresses between files remain empty virtual space and consume zero physical memory.
 
-At any time, each end-point can write data into the remote memory map on the opposite side of the connection.
-If for example, you want to update a single byte at address 0 you simply issue a write command.
+This allows APX to use fixed, 32-bit address spaces with predictable offsets across all device types—from 8-bit microcontrollers to 64-bit multi-core processors.
 
-| Write Address | 0 |
-| Write Length | 1 |
-| Data | 0-255 |
+## Files as Named Memory Regions
 
-However, you are only allowed to write to addresses where a file actually exists and has been previously opened by the remote side.
+In RemoteFile, a **file** is defined as a contiguous, named byte array mapped to a specific start address and size within the virtual memory space.
 
-**RemoteFile Rule Number 1:**
+This definition is independent of traditional filesystem files. In an APX session, files represent two core artifacts:
 
-> Any memory write to an address (lower than 0x3FFFFC00) is illegal, unless:
->
-> 1. A file exists in that address range.
-> 2. The file mapped in that range has been previousy opened by remote connection end-point.
+1. **Definition Files (`.apx`)**: The text-based APX IDL interface description for a node.
+2. **Signal Data Buffers (`.out` / `.in`)**: The packed binary memory regions where live port values are read and written.
 
-## The Control Area
+### The Control Area
 
-The limits (start and end addresses) of the memory maps are as follows:
+In addition to user files, the Remote Memory Map reserves the final 1KB (1,024 bytes) at the very top of the 1GB address space (`0x3FFFFC00`–`0x3FFFFFFF`) as a dedicated **Control Area**.
 
-| Map Type | Start Address | End Address |
-|:---|:---|:---|
-| Local Map | 0x00000000 | 0x3FFFFBFF |
-| Remote Map | 0x00000000 | 0x3FFFFFFF |
+The Control Area acts as a mailbox for control-plane commands. Rather than writing signal data, an endpoint writes structured command packets to this fixed address to:
 
-The remote memory maps are 1KB larger, This section is called the *control area*.
-By writing data to the control area you are issuing commands such as:
+- Announce newly published files.
+- Request opening or closing remote files.
+- Revoke unneeded files.
+- Send heartbeat and ping diagnostics.
 
-- Creating files
-- Opening files
+Because the Control Area exists at a fixed, known address from the moment a connection is established, peers can exchange commands before any data files are opened.
 
-**RemoteFile Rule Number 2:**
+### Memory Address Layout
 
-> Writing to the control area is always allowed as long as:
->
-> 1. The start address of the write is **exactly** 0x3FFFFC00.
-> 2. The length of the write is no longer than 1024 bytes.
+To minimize protocol overhead:
 
-## Creating and opening files
+- **Low Address Range (`0`–`16,383`)**: Frequently updated signal data buffers are mapped to the first 16KB to enable compact 2-byte address headers.
+- **High Address Range (`16,384`–`0x3FFFFBFF`)**: Static or rarely updated files (such as `.apx` definition files) are mapped across the remaining address space using 4-byte address headers.
+- **Control Area (`0x3FFFFC00`–`0x3FFFFFFF`)**: The final 1KB reserved exclusively for control commands.
 
-Files are created in the remote memory by sending a *FileInfo* structure from one side of the connection to the other.
+## Lifecycle and Synchronization
 
-**Contents of FileInfo Structure:**
+The synchronization lifecycle consists of four main phases:
 
-| Name | Type |
-|:---|:---|
-| Address | UINT32 |
-| Length | UINT32 |
-| FileType | UINT16 |
-| DigestType | UINT16 |
-| DigestData | UINT8[32] |
-| Name | Null-terminated string |
-
-For now let's just focus on the first two as well as the last element of the structure:
-
-- Address
-- Length
-- Name
-
-Simply put, by sending a FileInfo struct from local to remote side, informs remote side that a file has been created in his memory map.
-The *Address* element of the struct is the start address of the file, the *Length* element is the size of the file and the *Name* element is the name of the file.
-
-So far we have only informed remote side that a file exists, where it is (the start address), the size of it and its name.
-This is just informative, nothing actually happens until remote side chooses to open the file. It's completely up to the remote side to take
-that descision. For example, if a file is created with a size of 100MB (of virtual memory) but the remote side is hosted by a device with only a few KB of physical memory there is simply no way for that device to open such a large file. For security-reasons, any data write to an unopened file or writes that reaches outside file bounds must always be ignored (or treated as errors).
-
-After the FileInfo has been received and processed by the remote side, the remote side can choose to open the file. It does this by issuing a *FileOpen* command (written to the Control Area). The only piece of information that needs to be provided is the start address of the file in the remote memory map.
-
-**Contents of FileOpen Structure:**
-
-| Name | Type |
-|:---|:---|
-| Address | UINT32 |
-
-## File Synchronization
-
-Once the FileOpen command has been received, the remote side sends the entire file in a single file transfer. This is done by sending a copy of
-the local file to the remote side. Now comes the important part:
-
-**RemoteFile Rule Number 3:**
-
-> As long as a file of type *fixed* stays open **and**
-> there is an update/write of local file data **then**
-> the same data change must be communicated to the remote copy
-> of the file as a *write command*.
-
-This is how files stay synchronized on both sides of the connection. We will explain later what *fixed* files really are.
-
-In the example seen below we have two files.
-
-- **Foo.txt**: owned by end-point A, mirrored to end-point B.
-- **Bar.txt**: owned by end-point B, mirrored to end-point A.
+1. **File Announcement**: The publishing endpoint sends a file announcement command to the remote peer's Control Area, declaring the file name, size, start address, and checksum.
+2. **File Open**: The receiving endpoint evaluates whether it needs the file and has sufficient memory to host it. If accepted, it issues a file open command to the Control Area.
+3. **Initial Synchronization**: Once opened, the publisher transmits the complete initial contents of the file in a single write.
+4. **Delta Updates**: For the remainder of the session, whenever local file data changes, the publisher issues small write operations targeting only the modified byte ranges.
 
 ![File Synchronization Example](../images/RemoteFile_Sync.png)
+
+## Next Steps
+
+- Learn how an entire connection is negotiated and initialized in [APX Session](session.md).
+- Read the normative wire protocol and command definitions in the [RemoteFile v1.0 Specification](../specifications/protocols/remotefile.md).

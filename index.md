@@ -15,7 +15,7 @@ describe ports and exchange their values in real time.
 
 :::{grid-item-card} Integrate independently
 Teams own their interfaces and can connect their software when it is ready,
-without a central signal database or a large up-front integration step.
+without centralized configuration or a large up-front integration step.
 :::
 
 :::{grid-item-card} Language and platform independent
@@ -61,6 +61,13 @@ Learn the core model: nodes, ports, the virtual signal bus, and how APX relates
 to AUTOSAR.
 :::
 
+:::{grid-item-card} Use APX
+:link: guides/guides
+:link-type: doc
+
+Follow practical guides for working with APX definitions, nodes, and tools.
+:::
+
 :::{grid-item-card} Explore the design
 :link: design/design
 :link-type: doc
@@ -69,12 +76,6 @@ See how interface ownership, asynchronous messaging, and loose coupling shape
 APX.
 :::
 
-:::{grid-item-card} Use APX
-:link: guides/guides
-:link-type: doc
-
-Follow practical guides for working with APX definitions, nodes, and tools.
-:::
 
 :::{grid-item-card} Implement APX
 :link: specifications/specifications
@@ -101,7 +102,7 @@ source code:
 :maxdepth: 4
 
 Introduction/introduction
-specifications/specifications
 guides/guides
 design/design
+specifications/specifications
 ```

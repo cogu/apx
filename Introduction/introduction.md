@@ -107,7 +107,7 @@ An APX session has a short setup phase followed by continuous value exchange:
 3. The server matches published signals with compatible subscriptions.
 4. The server creates routes between the matching ports.
 5. For the remainder of the session, new values flow over those routes as
-  compact binary updates while the clients remain connected.
+   compact binary updates while the clients remain connected.
 
 The specifications define the formats and protocols involved in this process.
 Individual implementation repositories document how to build applications with
