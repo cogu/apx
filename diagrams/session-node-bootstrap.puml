@@ -1,0 +1,41 @@
+@startuml
+skinparam backgroundColor transparent
+skinparam shadowing false
+skinparam defaultFontName sans-serif
+skinparam activity {
+  BackgroundColor #F7F8F6
+  BorderColor #53616A
+  DiamondBackgroundColor #E8EFEA
+  DiamondBorderColor #53616A
+  FontColor #172126
+}
+skinparam ArrowColor #3B4A54
+
+start
+:Client publishes <Node>.apx;
+:Server opens the definition file;
+:Client sends the APX IDL text;
+:Server parses the definition;
+:Create port instances, byte offsets,\nserialization programs, and init data;
+
+fork
+  if (Node has provide ports?) then (yes)
+    :Client publishes <Node>.out;
+    :Server opens it;
+    :Client sends the initial\nprovide-data snapshot;
+    :Server makes provide ports\navailable for matching;
+  else (no)
+  endif
+fork again
+  if (Node has require ports?) then (yes)
+    :Server publishes <Node>.in;
+    :Client opens it;
+    :Server connects matching ports and\nbuilds the current require-data snapshot;
+    :Server sends that snapshot;
+  else (no)
+  endif
+end fork
+
+:Subsequent writes carry changed ranges;
+stop
+@enduml
