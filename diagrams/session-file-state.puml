@@ -1,0 +1,26 @@
+@startuml
+skinparam backgroundColor transparent
+skinparam shadowing false
+skinparam defaultFontName sans-serif
+skinparam state {
+  BackgroundColor #F7F8F6
+  BorderColor #53616A
+  FontColor #172126
+}
+skinparam ArrowColor #3B4A54
+
+[*] --> Initial
+Initial --> WaitingForPublication : peer owns the file
+Initial --> WaitingForOpen : local endpoint owns the file
+WaitingForPublication --> WaitingForData : receive FileInfo / send FileOpen
+WaitingForOpen --> Synchronized : receive FileOpen / send snapshot
+WaitingForData --> Synchronized : receive initial snapshot
+Synchronized --> Synchronized : receive or send delta writes
+Synchronized --> Revoked : FileRevoke
+Synchronized --> Disconnected : transport closes
+WaitingForPublication --> Disconnected
+WaitingForOpen --> Disconnected
+WaitingForData --> Disconnected
+Revoked --> [*]
+Disconnected --> [*]
+@enduml

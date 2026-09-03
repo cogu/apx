@@ -1,0 +1,47 @@
+@startuml
+skinparam backgroundColor transparent
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName sans-serif
+skinparam ArrowColor #3B4A54
+skinparam component {
+  BackgroundColor #F7F8F6
+  BorderColor #53616A
+  FontColor #172126
+}
+skinparam rectangle {
+  BackgroundColor #FFFFFF
+  BorderColor #85929A
+  FontColor #172126
+}
+
+rectangle "APX client" as client {
+  rectangle "Application" as app
+  component "Node definition\n<Node>.apx" as capx
+  component "Provide data\n<Node>.out" as cout
+  component "Require-data mirror\n<Node>.in" as cin
+
+  capx -[hidden]down-> cout
+  cout -[hidden]down-> cin
+}
+
+rectangle "APX server" as server {
+  component "Mirrored definition" as sapx
+  component "Mirrored provide data" as sout
+  component "Require data\n<Node>.in" as sin
+  rectangle "Parser and\nport router" as router
+
+  sapx -[hidden]down-> sout
+  sout -[hidden]down-> sin
+}
+
+app -right-> cout : writes
+cin -left-> app : reads
+capx -right-> sapx
+cout -right-> sout
+sin -left-> cin
+
+sapx -right-> router : interface and layout
+sout -right-> router : provided values
+router -left-> sin : required values
+@enduml

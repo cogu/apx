@@ -106,17 +106,15 @@ body:has(.landing-highlights) .sd-card {
     background-color: var(--apx-cyan);
 }
 
-/* Use these classes for paired draw.io or PlantUML SVG exports. */
-.diagram-dark {
-    display: none;
+/* PlantUML uses one transparent SVG for both Furo themes. In dark mode,
+   invert luminance and rotate hues back to their original color family. */
+p.plantuml img {
+    max-width: 100%;
+    height: auto;
 }
 
-[data-theme="dark"] .diagram-light {
-    display: none;
-}
-
-[data-theme="dark"] .diagram-dark {
-    display: block;
+[data-theme="dark"] p.plantuml img {
+    filter: invert(1) hue-rotate(180deg);
 }
 
 @media (max-width: 67rem) {

@@ -3,6 +3,8 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+from pathlib import Path
+
 # -- Project information -----------------------------------------------------
 
 project = 'APX'
@@ -17,6 +19,7 @@ extensions = [
     'sphinx_design',
     'sphinx.ext.githubpages',
     'sphinxcontrib.mermaid',
+    'sphinxcontrib.plantuml',
 ]
 
 templates_path = ['_templates']
@@ -24,6 +27,7 @@ exclude_patterns = [
     '_build',
     '.venv',
     'README.md',
+    'AGENTS.md',
     'implementations/**',
 ]
 
@@ -53,3 +57,6 @@ source_suffix = {
     '.rst': 'restructuredtext',
     '.md': 'markdown',
 }
+
+plantuml = f'java -jar {Path.home() / "plantuml" / "plantuml.jar"}'
+plantuml_output_format = 'svg_img'

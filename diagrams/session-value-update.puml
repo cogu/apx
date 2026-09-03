@@ -1,0 +1,49 @@
+@startuml
+left to right direction
+skinparam backgroundColor transparent
+skinparam shadowing false
+skinparam defaultFontName sans-serif
+skinparam rectangle {
+  BackgroundColor #F7F8F6
+  BorderColor #53616A
+  FontColor #172126
+}
+skinparam database {
+  BackgroundColor #FFFFFF
+  BorderColor #53616A
+  FontColor #172126
+}
+skinparam ArrowColor #3B4A54
+
+rectangle "Producer client" as producer {
+  rectangle "Application writes\nVehicleSpeed = 100" as write
+  database "Producer.out\nprovide-port offset 0" as out
+}
+
+rectangle "APX server" as server {
+  database "Mirrored Producer.out" as mirror
+  rectangle "Byte-to-port lookup\n+ connector table" as route
+}
+
+rectangle "Consumers" as consumers {
+  rectangle "Consumer client 1" as consumer1 {
+    database "Consumer1.in\nrequire-port offset 4" as consumer1in
+    rectangle "Require-port callback" as callback1
+  }
+
+  rectangle "Consumer client 2" as consumer2 {
+    database "Consumer2.in\nrequire-port offset 0" as consumer2in
+    rectangle "Require-port callback" as callback2
+  }
+
+  consumer2in -[hidden]down-> consumer1in
+}
+
+write --> out : 1. serialize
+out -right-> mirror : 2. delta write
+mirror --> route : 3. port lookup
+route -right-> consumer1in : 4a. write at offset 4
+route -right-> consumer2in : 4b. write at offset 0
+consumer1in --> callback1 : 5a. notify
+consumer2in --> callback2 : 5b. notify
+@enduml
