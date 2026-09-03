@@ -1,6 +1,6 @@
 sphinx
 myst-parser
 furo
-sphinx-autobuild
 sphinx-design
 sphinxcontrib-mermaid
+sphinxcontrib-plantuml

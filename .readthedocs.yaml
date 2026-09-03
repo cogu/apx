@@ -8,6 +8,13 @@ build:
   os: ubuntu-24.04
   tools:
     python: "3.12"
+  apt_packages:
+    - openjdk-21-jre-headless
+    - graphviz
+  jobs:
+    post_install:
+      - curl -L -o /tmp/plantuml.jar https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar
+      - echo 'export PLANTUML_JAR=/tmp/plantuml.jar' >> $READTHEDOCS_VIRTUALENV_PATH/bin/activate
 
 sphinx:
   configuration: conf.py
