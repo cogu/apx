@@ -3,7 +3,7 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-from pathlib import Path
+import os
 
 # -- Project information -----------------------------------------------------
 
@@ -58,5 +58,9 @@ source_suffix = {
     '.md': 'markdown',
 }
 
-plantuml = f'java -jar {Path.home() / "plantuml" / "plantuml.jar"}'
+if plantuml_jar := os.environ.get('PLANTUML_JAR'):
+    plantuml = f'java -jar {plantuml_jar}'
+else:
+    raise RuntimeError("PLANTUML_JAR environment variable not set")
+
 plantuml_output_format = 'svg_img'
