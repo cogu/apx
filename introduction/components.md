@@ -93,5 +93,5 @@ outside the current APX communication model.
 
 ## Next
 
-- Return to the [Introduction](introduction.md).
+- Return to the [Introduction](index.md).
 - Continue with the [APX IDL specifications](../specifications/idl/idl.md).
