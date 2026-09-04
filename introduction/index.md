@@ -119,4 +119,4 @@ their respective APIs and tools.
   compatibility.
 - [APX Specifications](../specifications/specifications.md) contains the formal
   IDL, protocol, and virtual-machine specifications.
-- [User Guides](../guides/guides.md) contains task-oriented documentation.
+- [User Guides](../guides/index.md) contains task-oriented documentation.

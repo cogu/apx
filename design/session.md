@@ -219,7 +219,7 @@ port, and routing meaning.
 - [RemoteFile design](remotefile.md) explains the virtual-memory model.
 - [RemoteFile v1.0](../specifications/protocols/remotefile.md) defines the wire
   protocol and control commands.
-- [Components and Ports](../Introduction/components.md) introduces provide and
+- [Components and Ports](../introduction/components.md) introduces provide and
   require ports.
 - [APX IDL](../specifications/idl/idl.md) defines node interface text.
 - [Serialization Rules](../specifications/vm/serialization_rules.md) explains

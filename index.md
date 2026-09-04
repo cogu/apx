@@ -6,7 +6,7 @@ APX connects AUTOSAR software components with applications and devices outside
 the AUTOSAR environment. It provides a small, language-independent way to
 describe ports and exchange their values in real time.
 
-[Get an introduction](Introduction/introduction.md){.sd-btn .sd-btn-primary}
+[Get an introduction](introduction/index.md){.sd-btn .sd-btn-primary}
 [Read the specifications](specifications/specifications.md){.sd-btn .sd-btn-outline-primary}
 
 ::::{grid} 1 1 3 3
@@ -54,7 +54,7 @@ signals without depending on each other's implementation details.
 :gutter: 3
 
 :::{grid-item-card} Understand APX
-:link: Introduction/introduction
+:link: introduction/index
 :link-type: doc
 
 Learn the core model: nodes, ports, the virtual signal bus, and how APX relates
@@ -62,14 +62,14 @@ to AUTOSAR.
 :::
 
 :::{grid-item-card} Use APX
-:link: guides/guides
+:link: guides/index
 :link-type: doc
 
 Follow practical guides for working with APX definitions, nodes, and tools.
 :::
 
 :::{grid-item-card} Explore the design
-:link: design/design
+:link: design/index
 :link-type: doc
 
 See how interface ownership, asynchronous messaging, and loose coupling shape
@@ -101,8 +101,8 @@ source code:
 :hidden:
 :maxdepth: 4
 
-Introduction/introduction
-guides/guides
-design/design
+introduction/index
+guides/index
+design/index
 specifications/specifications
 ```
