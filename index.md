@@ -37,12 +37,16 @@ server matches compatible ports and routes value updates between nodes. Each
 node can use the programming language, operating system, and physical transport
 that best suits its job.
 
-:::{admonition} Architecture diagram
-:class: landing-diagram-placeholder
+:::{image} images/virtual_bus_light.svg
+:alt: APX Virtual Bus Architecture
+:class: only-light
+:align: center
+:::
 
-Future illustration: AUTOSAR software, a Python tool, an embedded device, and a
-desktop HMI connected as APX nodes through the APX virtual bus. The diagram will
-also show a gateway bridging different physical transports.
+:::{image} images/virtual_bus_dark.svg
+:alt: APX Virtual Bus Architecture
+:class: only-dark
+:align: center
 :::
 
 This makes the server behave like a virtual bus: nodes exchange automotive
