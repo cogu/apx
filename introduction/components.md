@@ -14,12 +14,18 @@ The equivalent unit in APX is the **node**. An APX node describes the part of a
 component interface needed for signal exchange; it does not prescribe how the
 component itself is implemented.
 
-:::{admonition} Component and port diagram
-:class: landing-diagram-placeholder
-
-Future illustration: an APX node with require ports entering on the left and
-provide ports leaving on the right, followed by the equivalent AUTOSAR SWC.
+:::{image} ../images/swc_to_apx_node_light.svg
+:alt: Software Component and APX Node Ports
+:class: only-light
+:align: center
 :::
+
+:::{image} ../images/swc_to_apx_node_dark.svg
+:alt: Software Component and APX Node Ports
+:class: only-dark
+:align: center
+:::
+
 
 This separation lets the same APX interface be implemented by an AUTOSAR SWC,
 an embedded C application, or a program running on a desktop operating system.
@@ -71,6 +77,20 @@ value. This includes:
 APX supports scalar values, strings, arrays, and records. These definitions are
 written in APX IDL and determine how values are serialized into the node's
 binary data area.
+
+```text
+P"VehicleSpeed"S:=0
+```
+
+Declares a **provide port** (`P`) named `"VehicleSpeed"` carrying an unsigned
+16-bit integer (`S`) with an initial value of `0`.
+
+```text
+R"EngineSpeed"S
+```
+
+Declares a **require port** (`R`) named `"EngineSpeed"` expecting an incoming
+unsigned 16-bit integer (`S`).
 
 ## Port matching
 
