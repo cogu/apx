@@ -83,12 +83,10 @@ The server and gateways react to incoming messages and forward the resulting
 updates. This event-driven flow keeps components independent and allows data to
 cross process, device, and transport boundaries.
 
-:::{admonition} Message flow diagram
-:class: landing-diagram-placeholder
-
-Future illustration: a publisher updates a port, the APX server routes the
-binary update, and several subscribers receive it independently.
-:::
+```{mermaid} ../diagrams/message-flow.mmd
+:align: center
+:caption: Asynchronous message passing and fan-out routing
+```
 
 ## Smart endpoints and simple transports
 
