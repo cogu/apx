@@ -1,0 +1,10 @@
+%%{ init: { 'flowchart': { 'curve': 'step' } } }%%
+flowchart LR
+    Publisher["<b>Producer Node</b><br/>Provide Port: <code>VehicleSpeed</code>"]
+    Server["<b>APX Server</b>"]
+    Consumer1["<b>Consumer Node 1</b><br/>Require Port: <code>VehicleSpeed</code>"]
+    Consumer2["<b>Consumer Node 2</b><br/>Require Port: <code>VehicleSpeed</code>"]
+
+    Publisher --->|"New Value: 5"| Server
+    Server --->|"New Value: 5"| Consumer1
+    Server --->|"New Value: 5"| Consumer2

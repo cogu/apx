@@ -28,6 +28,7 @@ exclude_patterns = [
     '.venv',
     'README.md',
     'AGENTS.md',
+    'TODO.md',
     'implementations/**',
 ]
 
