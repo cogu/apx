@@ -76,8 +76,8 @@ Follow practical guides for working with APX definitions, nodes, and tools.
 :link: design/index
 :link-type: doc
 
-See how interface ownership, asynchronous messaging, and loose coupling shape
-APX.
+Learn about internal protocol architecture, RemoteFile memory-mapped
+synchronization, and connection session lifecycles.
 :::
 
 
