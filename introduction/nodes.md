@@ -32,12 +32,16 @@ APX uses a client-server topology. Nodes connect to an APX server and send
 their definitions. The server matches publishers with subscribers by signal
 name and data type, then creates the corresponding routes.
 
-:::{admonition} APX virtual bus diagram
-:class: landing-diagram-placeholder
+:::{image} ../images/apx_signal_bus_light.svg
+:alt: APX signal bus
+:class: only-light
+:align: center
+:::
 
-Future illustration: several APX nodes surrounding a central virtual bus. A
-provided `VehicleSpeed` value from an AUTOSAR node is routed to matching require
-ports in a Python test tool and a desktop HMI.
+:::{image} ../images/apx_signal_bus_dark.svg
+:alt: APX signal bus
+:class: only-dark
+:align: center
 :::
 
 After matching is complete, each published value is sent to the nodes that

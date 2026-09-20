@@ -31,7 +31,17 @@ Every RemoteFile connection maintains two 1GB virtual memory spaces:
 - **Local Memory Map**: Contains files and signal buffers created and published by the local endpoint.
 - **Remote Memory Map**: Contains files and signal buffers published by the remote peer, plus a dedicated **Control Area**.
 
-![Empty Memory Map](../images/RemoteFile_Empty.png)
+:::{image} ../images/remote_file_memory_light.svg
+:alt: RemoteFile Memory Map
+:class: only-light
+:align: center
+:::
+
+:::{image} ../images/remote_file_memory_dark.svg
+:alt: RemoteFile Memory Map
+:class: only-dark
+:align: center
+:::
 
 ### Sparse Virtual Memory on Embedded Devices
 
@@ -81,7 +91,17 @@ The synchronization lifecycle consists of four main phases:
 3. **Initial Synchronization**: Once opened, the publisher transmits the complete initial contents of the file in a single write.
 4. **Delta Updates**: For the remainder of the session, whenever local file data changes, the publisher issues small write operations targeting only the modified byte ranges.
 
-![File Synchronization Example](../images/RemoteFile_Sync.png)
+:::{image} ../images/remote_file_update_light.svg
+:alt: RemoteFile Memory Map
+:class: only-light
+:align: center
+:::
+
+:::{image} ../images/remote_file_update_dark.svg
+:alt: RemoteFile Memory Map
+:class: only-dark
+:align: center
+:::
 
 ## Next Steps
 

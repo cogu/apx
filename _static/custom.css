@@ -8,7 +8,6 @@
     --apx-orange: #b9650d;
     --apx-surface: #f4f8f7;
     --apx-border: #cbded9;
-    --apx-pattern: rgba(20, 122, 100, 0.08);
 }
 
 [data-theme="dark"] {
@@ -19,7 +18,6 @@
     --apx-orange: #f2ac53;
     --apx-surface: #172522;
     --apx-border: #34534c;
-    --apx-pattern: rgba(85, 196, 167, 0.09);
 }
 
 /* Give the home page an editorial lead without changing documentation pages. */
@@ -86,25 +84,6 @@ body:has(.landing-highlights) .sd-card {
     letter-spacing: 0;
 }
 
-.landing-diagram-placeholder {
-    margin-block: 1.75rem;
-    border: 1px dashed var(--apx-border);
-    border-left: 4px solid var(--apx-cyan);
-    border-radius: 4px;
-    background-color: var(--apx-surface);
-    background-image: radial-gradient(var(--apx-pattern) 1px, transparent 1px);
-    background-size: 16px 16px;
-}
-
-.landing-diagram-placeholder .admonition-title {
-    border-bottom: 1px dashed var(--apx-border);
-    background-color: transparent;
-    color: var(--apx-cyan);
-}
-
-.landing-diagram-placeholder .admonition-title::before {
-    background-color: var(--apx-cyan);
-}
 
 /* PlantUML uses one transparent SVG for both Furo themes. In dark mode,
    invert luminance and rotate hues back to their original color family. */
