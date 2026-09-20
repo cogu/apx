@@ -92,13 +92,13 @@ The synchronization lifecycle consists of four main phases:
 4. **Delta Updates**: For the remainder of the session, whenever local file data changes, the publisher issues small write operations targeting only the modified byte ranges.
 
 :::{image} ../images/remote_file_update_light.svg
-:alt: RemoteFile Memory Map
+:alt: RemoteFile Synchronization Lifecycle
 :class: only-light
 :align: center
 :::
 
 :::{image} ../images/remote_file_update_dark.svg
-:alt: RemoteFile Memory Map
+:alt: RemoteFile Synchronization Lifecycle
 :class: only-dark
 :align: center
 :::

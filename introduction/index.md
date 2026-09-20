@@ -164,7 +164,8 @@ their respective APIs and tools.
 
 ## Continue reading
 
-- [APX Nodes](nodes.md) An introduction to the APX node.
+- [APX Nodes](nodes.md) introduces the node concept, virtual bus, and
+  definition files.
 - [Components and Ports](components.md) explains the component model and port
   compatibility.
 - [APX Specifications](../specifications/specifications.md) contains the formal
