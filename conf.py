@@ -4,13 +4,14 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 import os
+import shutil
 
 # -- Project information -----------------------------------------------------
 
 project = 'APX'
 copyright = '2026, Conny Gustafsson'
 author = 'Conny Gustafsson'
-release = 'v1.3'
+release = '0.2'
 
 # -- General configuration ---------------------------------------------------
 
@@ -60,7 +61,17 @@ source_suffix = {
 
 if plantuml_jar := os.environ.get('PLANTUML_JAR'):
     plantuml = f'java -jar {plantuml_jar}'
+elif os.path.exists('/tmp/plantuml.jar'):
+    plantuml = 'java -jar /tmp/plantuml.jar'
+elif (user_plantuml := os.path.expanduser('~/plantuml/plantuml.jar')) and os.path.exists(user_plantuml):
+    plantuml = f'java -jar {user_plantuml}'
+elif os.path.exists('/usr/share/plantuml/plantuml.jar'):
+    plantuml = 'java -jar /usr/share/plantuml/plantuml.jar'
+elif shutil.which('plantuml'):
+    plantuml = shutil.which('plantuml')
 else:
-    raise RuntimeError("PLANTUML_JAR environment variable not set")
+    raise RuntimeError(
+        "PLANTUML_JAR environment variable not set, and plantuml was not found in standard paths (/tmp/plantuml.jar, ~/plantuml/plantuml.jar)."
+    )
 
 plantuml_output_format = 'svg_img'
