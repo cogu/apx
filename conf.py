@@ -29,7 +29,6 @@ exclude_patterns = [
     'README.md',
     'AGENTS.md',
     'TODO.md',
-    'implementations/**',
 ]
 
 # MyST Parser configuration
