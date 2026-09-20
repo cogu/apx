@@ -1,10 +1,11 @@
 # APX
 
-## Automotive signals, everywhere
+## Bridging AUTOSAR with modern systems
 
-APX connects AUTOSAR software components with applications and devices outside
-the AUTOSAR environment. It provides a small, language-independent way to
-describe ports and exchange their values in real time.
+APX (AUTOSAR Port eXchange) connects AUTOSAR Classic software components with
+applications and devices outside the AUTOSAR environment. Designed specifically
+for the AUTOSAR Classic Platform, it provides a lightweight, language-independent
+way to describe ports and exchange their values in real time.
 
 [Get an introduction](introduction/index.md){.sd-btn .sd-btn-primary}
 [Read the specifications](specifications/specifications.md){.sd-btn .sd-btn-outline-primary}
