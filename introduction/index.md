@@ -1,8 +1,8 @@
 # Introduction
 
-APX (**AUTOSAR Port eXchange**) lets AUTOSAR software components exchange
-signal data with software outside AUTOSAR, such as Linux HMIs, Python test
-tools, and embedded devices.
+APX (**AUTOSAR Port eXchange**) lets AUTOSAR Classic software components exchange
+signal data with software outside the AUTOSAR environment, such as Linux HMIs,
+Python test tools, and embedded devices.
 
 ```{toctree}
 :maxdepth: 1

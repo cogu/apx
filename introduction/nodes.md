@@ -19,7 +19,7 @@ communicate without first updating a shared system configuration.
 An APX application exposes one or more **nodes**. Each node represents a
 component that publishes and subscribes to a defined set of signals.
 
-This model deliberately resembles an AUTOSAR software component. An APX node
+This model deliberately resembles an AUTOSAR Classic software component. An APX node
 can therefore represent an AUTOSAR SWC outside the ECU without copying the
 SWC's internal implementation. APX calls a published signal a **provide port**
 and a subscription a **require port**.

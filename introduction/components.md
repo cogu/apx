@@ -6,7 +6,7 @@ system through ports.
 
 ## From AUTOSAR SWCs to APX nodes
 
-In AUTOSAR, the unit of composition is the **software component**, commonly
+In AUTOSAR Classic, the unit of composition is the **software component**, commonly
 abbreviated to **SWC**. Its ports form the boundary between the component and
 the rest of the system.
 
@@ -108,8 +108,8 @@ AUTOSAR defines several kinds of port interfaces. APX currently models
 data-oriented sender-receiver communication. One provide port supplies a value
 to one or more matching require ports.
 
-Client-server operation calls and other service-oriented AUTOSAR interfaces are
-outside the current APX communication model.
+Client-server operation calls and service-oriented architectures (such as
+those used in Adaptive AUTOSAR) are outside the current APX communication model.
 
 ## Next
 
