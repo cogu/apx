@@ -38,6 +38,10 @@ The suffixes are from the node's point of view: `.out` carries data out of the
 node and `.in` carries data into it. They do not describe the direction of a
 socket or a server API.
 
+Nodes may also use companion connection-count files (`<Node>.cout` and `<Node>.cin`)
+to monitor active peer connections per port. For a complete specification of all five
+files, their binary memory layouts, and addressing, see [Node Virtual Files](files.md).
+
 Each file occupies an address range in its owner's **local** RemoteFile map and
 the peer's **remote** map. Therefore, equal numeric addresses on opposite peers
 do not refer to the same storage. Frequently updated port-data files are
@@ -66,17 +70,18 @@ has been accepted.
 ## Bringing a node online
 
 A node does not become usable through one monolithic handshake. Its definition,
-provide data, and require data progress independently as files are published,
-opened, and initialized. The definition is the dependency that lets the server
-construct the other two data models.
+provide data, require data, and companion connection-count files progress
+independently as files are published, opened, and initialized. The definition is
+the dependency that lets the server construct the other data models.
 
 ```{uml} ../diagrams/session-node-bootstrap.puml
 ```
 
 This diagram intentionally shows parallel branches. Network scheduling and
-file announcement order can interleave, and a node may contain only provide
-ports or only require ports. What matters is each file's own readiness, not a
-single global phase number.
+file availability allow readiness to be tracked on a per-file basis rather than
+a single monolithic phase. However, as explained below, the relative ordering of
+file announcements and file open requests between companion connection-count files
+and port-data files is strictly constrained.
 
 ### Definition synchronization
 
@@ -122,6 +127,59 @@ The initial transfer is a full snapshot:
 After that snapshot, a write may cover one port, several adjacent ports, or a
 portion allowed by the underlying file API. The server uses its byte-to-port
 map to determine which provide ports are affected.
+
+### Ordering of file announcement and opening
+
+When nodes utilize companion connection-count files (`<Node>.cout` and `<Node>.cin`),
+the relative order of file announcements and file opening requests is critical for
+deterministic routing and race-free state transitions.
+
+Opening the `<Node>.in` file causes the server to connect matching ports and compute
+initial signal routing. During this step, the server calculates connection counts for
+both provide and require ports and immediately emits count updates across the wire.
+If the connection-count files have not been established and opened prior to this event,
+these count updates could arrive before the client's mirrors are prepared, leading to
+missed notifications or out-of-order state transitions.
+
+To guarantee determinism, implementations must adhere to the following ordering rules:
+
+#### APX Server requirements
+
+The APX server must announce both companion connection-count files before announcing
+or opening the port-data files:
+
+1. **Announce `<Node>.cout`** (if provide-port counts are enabled).
+2. **Announce `<Node>.cin`** (if require-port counts are enabled).
+3. **Announce `<Node>.in`** (if require ports exist).
+4. **Request to open `<Node>.out`** (if provide ports exist).
+
+Announcing `.cout` and `.cin` first ensures the client learns about the count files
+and can initiate their open requests before the server signals that require-port
+data is available.
+
+#### APX Client requirements
+
+The APX client must request to open both companion connection-count files (if they
+exist) before requesting to open the port-data files:
+
+1. **Request to open `<Node>.cout`** (if published by the server).
+2. **Request to open `<Node>.cin`** (if published by the server).
+3. **Request to open `<Node>.in`** (after requesting both count files).
+
+By requesting to open `.cout` and `.cin` first, the client guarantees that its local
+count mirrors and buffers are ready to receive initial count snapshots and routing deltas
+the moment the server completes port connection upon opening `.in`.
+
+#### Deterministic FIFO ordering via worker queues
+
+In the reference implementation (`c-apx`), deterministic event handling is enforced by
+`apx_file_manager_worker_t`. The worker uses an internal ringbuffer queue that processes
+events and transmits commands in strict First-In, First-Out (FIFO) sequence.
+
+As long as the server enqueues `.cout` and `.cin` announcements before `.in`/`.out` events,
+and the client enqueues `.cout` and `.cin` open requests before `.in`/`.out` requests,
+the FIFO queue guarantees that all commands and events are dispatched across the wire
+in this exact sequence.
 
 ## How ports are matched
 
@@ -205,7 +263,8 @@ publication, initial snapshots, and port reconnection are established again.
 | Stream framing and greeting | Yes | No |
 | Virtual addresses and control area | Yes | No |
 | Publish, open, close, and revoke files | Yes | No |
-| Meaning of `.apx`, `.out`, and `.in` | No | Yes |
+| Meaning of `.apx`, `.out`, `.in`, `.cout`, and `.cin` | No | Yes |
+| Deterministic announcement and open ordering | No | Yes |
 | Parsing node and port definitions | No | Yes |
 | Port signature matching | No | Yes |
 | Routing one provide value to require ports | No | Yes |
@@ -217,6 +276,7 @@ port, and routing meaning.
 ## Related reading
 
 - [RemoteFile design](remotefile.md) explains the virtual-memory model.
+- [Node Virtual Files](files.md) defines the binary layout, addressing, and connection-count files (`.cout` and `.cin`).
 - [RemoteFile v1.0](../specifications/protocols/remotefile.md) defines the wire
   protocol and control commands.
 - [Components and Ports](../introduction/components.md) introduces provide and

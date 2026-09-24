@@ -14,6 +14,7 @@ node definitions and live port values.
 
 remotefile
 session
+files
 ```
 
 ## Detailed design articles
@@ -22,3 +23,5 @@ session
   virtual addressing, and binary wire framing.
 - [APX Session](session.md) explains connection lifecycles, file ownership,
   and how `.apx`, `.in`, and `.out` files coordinate between peers.
+- [Node Virtual Files](files.md) defines the memory-mapped file types (`.apx`,
+  `.out`, `.in`, `.cout`, `.cin`), authoritative ownership, and binary layouts.
