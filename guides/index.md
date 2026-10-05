@@ -53,7 +53,7 @@ From the `c-apx` directory, start the server with the example configuration:
 :sync: linux
 
 ```bash
-build/app/apx_server/apx_server example/config
+build/app/apx_server/apx-server example/config
 ```
 
 :::
@@ -62,7 +62,7 @@ build/app/apx_server/apx_server example/config
 :sync: windows
 
 ```batch
-build\app\apx_server\Debug\apx_server.exe example\config
+build\app\apx_server\Debug\apx-server.exe example\config
 ```
 
 :::
@@ -82,7 +82,7 @@ Open a second terminal in the `c-apx` directory and start the listener node:
 :sync: linux
 
 ```bash
-build/app/apx_node/apx_node --no-bind example/nodes/unsigned_listener.apx
+build/app/apx_node/apx-node --no-bind example/nodes/unsigned_listener.apx
 ```
 
 :::
@@ -91,7 +91,7 @@ build/app/apx_node/apx_node --no-bind example/nodes/unsigned_listener.apx
 :sync: windows
 
 ```batch
-build\app\apx_node\Debug\apx_node.exe --no-bind example\nodes\unsigned_listener.apx
+build\app\apx_node\Debug\apx-node.exe --no-bind example\nodes\unsigned_listener.apx
 ```
 
 :::
@@ -107,7 +107,7 @@ Open a third terminal in the `c-apx` directory and start the sender node:
 :sync: linux
 
 ```bash
-build/app/apx_node/apx_node example/nodes/unsigned_sender.apx
+build/app/apx_node/apx-node example/nodes/unsigned_sender.apx
 ```
 
 :::
@@ -116,7 +116,7 @@ build/app/apx_node/apx_node example/nodes/unsigned_sender.apx
 :sync: windows
 
 ```batch
-build\app\apx_node\Debug\apx_node.exe example\nodes\unsigned_sender.apx
+build\app\apx_node\Debug\apx-node.exe example\nodes\unsigned_sender.apx
 ```
 
 :::
@@ -135,7 +135,7 @@ Open a fourth terminal in the `c-apx` directory and set `VehicleSpeed` to
 :sync: linux
 
 ```bash
-build/app/apx_control/apx_control VehicleSpeed 100
+build/app/apx_control/apx-control VehicleSpeed 100
 ```
 
 :::
@@ -144,14 +144,14 @@ build/app/apx_control/apx_control VehicleSpeed 100
 :sync: windows
 
 ```batch
-build\app\apx_control\Debug\apx_control.exe VehicleSpeed 100
+build\app\apx_control\Debug\apx-control.exe VehicleSpeed 100
 ```
 
 :::
 
 ::::
 
-The value travels from `apx_control` to `unsigned_sender`, then through the APX
+The value travels from `apx-control` to `unsigned_sender`, then through the APX
 server to `unsigned_listener`. The terminal running the listener prints:
 
 ```text
