@@ -16,7 +16,7 @@ values and routes them between compatible nodes.
 ```{note}
 This page explains how the pieces cooperate. The normative wire format,
 command encodings, and addressing rules are defined by the
-[RemoteFile protocol specification](../specifications/protocols/remotefile.md).
+[RemoteFile protocol specifications](../specifications/protocols/remotefile1_0.md) ([v1.0](../specifications/protocols/remotefile1_0.md) and [v1.1](../specifications/protocols/remotefile1_1.md)).
 ```
 
 ## The three files of a node
@@ -277,7 +277,7 @@ port, and routing meaning.
 
 - [RemoteFile design](remotefile.md) explains the virtual-memory model.
 - [Node Virtual Files](files.md) defines the binary layout, addressing, and connection-count files (`.cout` and `.cin`).
-- [RemoteFile v1.0](../specifications/protocols/remotefile.md) defines the wire
+- [RemoteFile v1.0](../specifications/protocols/remotefile1_0.md) and [RemoteFile v1.1](../specifications/protocols/remotefile1_1.md) define the wire
   protocol and control commands.
 - [Components and Ports](../introduction/components.md) introduces provide and
   require ports.

@@ -11,7 +11,7 @@ address space.
 
 ```{note}
 For complete binary packet headers, control command opcodes, and wire framing, see
-the [RemoteFile v1.0 Specification](../specifications/protocols/remotefile.md). For how
+the [RemoteFile Specifications](../specifications/protocols/remotefile1_0.md) ([v1.0](../specifications/protocols/remotefile1_0.md) and [v1.1](../specifications/protocols/remotefile1_1.md)). For how
 sessions are negotiated, see [The APX Session](session.md).
 ```
 

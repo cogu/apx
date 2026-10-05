@@ -64,4 +64,5 @@ APX uses lightweight, message-oriented protocols to exchange signal data and syn
 
 - [**Transport Protocols Overview**](protocols/protocols.md): Protocol architecture and transport integration.
 - [**NumHeader**](protocols/numheader.md): Compact variable-length integer encoding for message length framing (NumHeader16 and NumHeader32).
-- [**RemoteFile v1.0**](protocols/remotefile.md): Virtual memory-mapped synchronization protocol managing 1GB address spaces, control areas, and asynchronous data updates.
+- [**RemoteFile v1.0**](protocols/remotefile1_0.md): Virtual memory-mapped synchronization protocol managing 1GB address spaces, control areas, and asynchronous data updates.
+- [**RemoteFile v1.1**](protocols/remotefile1_1.md): Extended synchronization protocol introducing cryptographic file signing (ECDSA P-256), handshake acceptance headers with connection IDs, detailed error reporting (NACK), and runtime connection monitoring.

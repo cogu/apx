@@ -5,7 +5,7 @@ Communication between APX clients and servers is built on top of a lower-level, 
 While APX presents a high-level model of nodes, provide ports, and require ports, RemoteFile provides the underlying mechanism that mirrors data across network and process boundaries in real time.
 
 ```{note}
-For full binary packet layouts, command opcodes, and wire framing, see the [RemoteFile v1.0 Specification](../specifications/protocols/remotefile.md).
+For full binary packet layouts, command opcodes, and wire framing, see the [RemoteFile v1.0 Specification](../specifications/protocols/remotefile1_0.md) and [RemoteFile v1.1 Specification](../specifications/protocols/remotefile1_1.md).
 ```
 
 ## Why Memory-Mapped Synchronization?
@@ -106,4 +106,4 @@ The synchronization lifecycle consists of four main phases:
 ## Next Steps
 
 - Learn how an entire connection is negotiated and initialized in [APX Session](session.md).
-- Read the normative wire protocol and command definitions in the [RemoteFile v1.0 Specification](../specifications/protocols/remotefile.md).
+- Read the normative wire protocol and command definitions in [RemoteFile v1.0](../specifications/protocols/remotefile1_0.md) and [RemoteFile v1.1](../specifications/protocols/remotefile1_1.md).
