@@ -1,4 +1,4 @@
-# RemoteFile v1.1
+# RemoteFile v1.1 (Unreleased)
 
 RemoteFile is a binary, message-based protocol used to synchronize virtual memory regions across a point-to-point communication link (such as a TCP socket, UNIX domain socket, or shared memory). It acts as the application transport layer of an active APX session.
 
@@ -15,6 +15,7 @@ RemoteFile v1.1 extends the baseline RemoteFile v1.0 protocol with enhanced hand
 - **Rich Error Reporting (`RMF_CMD_NACK`)**: Expands negative acknowledgement from an empty opcode into a structured command containing a 32-bit error code and an optional node name string.
 - **Cryptographic File Authentication (`RMF_CMD_PUBLISH_SIGNED_FILE`)**: Introduces file publication with attached digital signatures (ECDSA P-256), enabling zero-trust authentication of node interfaces.
 - **Runtime Connection Monitoring (`RMF_CMD_CONNECTION_CREATE`, `RMF_CMD_CONNECTION_REVOKE`)**: Allows monitoring extensions to receive real-time connection lifecycle events.
+- **Stream Files (`FileStream`)**: Formalizes block-preserving streaming over RemoteFile with dedicated buffer negotiation (`RMF_CMD_STREAM_OPEN`, `RMF_CMD_STREAM_OPEN_RSP`), cumulative credit-based flow control (`RMF_CMD_STREAM_WINDOW_UPDATE`), and per-stream abort signaling (`RMF_CMD_STREAM_ABORT`).
 - **Expanded File Types**: Formalizes support for dynamic files with 8-, 16-, and 32-bit length headers, device files, and streaming FIFO queues.
 
 ---
@@ -267,6 +268,11 @@ The first 4 bytes (`U32LE`) of any control command payload identify the command:
 | `RMF_CMD_CONNECTION_CREATE` | 21 | v1.1 | New connection created notification |
 | `RMF_CMD_CONNECTION_REVOKE` | 22 | v1.1 | Connection closed / revoked notification |
 | `RMF_CMD_PUBLISH_SIGNED_FILE` | 23 | v1.1 | Publish / announce a cryptographically signed file |
+| `RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE` | 24 | v1.1 | Publish / announce a Deflate-compressed signed file |
+| `RMF_CMD_STREAM_OPEN` | 25 | v1.1 | Open stream file with buffer & window negotiation |
+| `RMF_CMD_STREAM_OPEN_RSP` | 26 | v1.1 | Stream open response with negotiated parameters |
+| `RMF_CMD_STREAM_WINDOW_UPDATE` | 27 | v1.1 | Cumulative credit window update for stream flow control |
+| `RMF_CMD_STREAM_ABORT` | 28 | v1.1 | Abort stream file session |
 
 ---
 
@@ -354,6 +360,31 @@ Announces a cryptographically signed file. This command is typically used to pub
 | 80 | `FileName` | String | ASCII | Null-terminated file name string |
 
 The fixed header size of `PublishSignedFile` is **80 bytes**. The total structure size is $80 + 	ext{strlen(FileName)} + 1$ bytes. The maximum file name length is **943 bytes** (excluding the null terminator).
+
+**PublishSignedCompressedFile Command (`RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE`):**
+Announces a cryptographically signed file whose wire payload is compressed (e.g. via Deflate) to minimize transfer latency during startup. The cryptographic signature is computed over the uncompressed payload, ensuring end-to-end cryptographic integrity.
+
+| Offset | Field | Type | Value Range | Description |
+|:---:|:---|:---:|:---|:---|
+| 0 | `CmdType` | `U32LE` | `24` (`RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE`) | Command Identifier |
+| 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of the file |
+| 8 | `UncompressedSize` | `U32LE` | `0` – `0x3FFFFC00` | Decompressed size of the file in bytes |
+| 12 | `CompressedSize` | `U32LE` | `0` – `0x3FFFFC00` | Total compressed bytes transmitted over the wire |
+| 16 | `FileType` | `U16LE` | `0` – `5` | File type descriptor (typically `0` = `FixedFile`) |
+| 18 | `CompressionType` | `U16LE` | `0` – `1` | Compression algorithm (see below) |
+| 20 | `SignatureType` | `U16LE` | `0` – `1` | Cryptographic signature type (see below) |
+| 22 | `Reserved` | `U16LE` | `0` | Reserved for alignment; MUST be zero |
+| 24 | `SignatureData` | `UINT8[64]` | Bytes | 64-byte signature over uncompressed data |
+| 88 | `FileName` | String | ASCII | Null-terminated file name string |
+
+The fixed header size of `PublishSignedCompressedFile` is **88 bytes**. The total structure size is $88 + \text{strlen(FileName)} + 1$ bytes. The maximum file name length is **935 bytes** (excluding the null terminator).
+
+#### CompressionType Values
+
+| Value | Identifier | Description |
+|:---:|:---|:---|
+| `0` | `NoCompression` | Payload is uncompressed |
+| `1` | `Deflate` | Raw Deflate compression (RFC 1951) |
 
 #### FileType Values
 
@@ -509,6 +540,119 @@ Total size: **8 bytes**.
 
 ---
 
+## Stream Files (FileStream)
+
+RemoteFile v1.1 formalizes streaming communication through the `FileStream` descriptor (`FileType = 5`). While standard fixed files (`FileType = 0`) synchronize memory regions where successive writes overwrite bytes at specific offsets, stream files model sequential, discrete message queues.
+
+### Stream File Semantics
+
+1. **Block Preservation**: Each stream write begins at the stream mapped `StartAddress` (offset `0`). A stream message consists of one or more fragmented transport writes where all intermediate chunks set the `MORE_BIT` flag in the address header, and the terminating chunk clears `MORE_BIT = 0`. The reassembled payload constitutes a single discrete, atomic application block.
+2. **Zero Internal Framing Overhead**: Higher-level stream protocols (such as diagnostics and binary logging) do not require nested length headers. The combination of RemoteFile `NumHeader32` length framing and the `MORE_BIT` boundary delimiter completely defines the message boundary.
+3. **No Offset Writing**: The writer MUST always write to offset `0` of the stream file. Random access or partial offset updates are prohibited.
+
+---
+
+### Stream Lifecycle & Commands
+
+Because standard `RMF_CMD_FILE_OPEN` provides no mechanism to negotiate maximum frame buffers or buffer capacities, stream files utilize a specialized open handshake and flow-control mechanism:
+
+#### StreamOpen Command (`RMF_CMD_STREAM_OPEN`)
+
+Sent by the file receiver to the file publisher to request opening a published `FileStream`.
+
+| Offset | Field | Type | Value Range | Description |
+|:---:|:---|:---|:---|:---|
+| 0 | `CmdType` | `U32LE` | `25` (`RMF_CMD_STREAM_OPEN`) | Command Identifier |
+| 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of published `FileStream` |
+| 8 | `MaxBlockSize` | `U32LE` | $1$ – $2^{32}-1$ | Largest block size (bytes) accepted by receiver |
+| 12 | `WindowBlocks` | `U16LE` | $1$ – $65535$ | Maximum unconsumed complete blocks receiver can buffer |
+| 14 | `Flags` | `U16LE` | `0` | Reserved; MUST be zero |
+
+Total size: **16 bytes**.
+
+#### StreamOpenResponse Command (`RMF_CMD_STREAM_OPEN_RSP`)
+
+Sent by the stream publisher to the receiver in response to `RMF_CMD_STREAM_OPEN`.
+
+| Offset | Field | Type | Value Range | Description |
+|:---:|:---|:---|:---|:---|
+| 0 | `CmdType` | `U32LE` | `26` (`RMF_CMD_STREAM_OPEN_RSP`) | Command Identifier |
+| 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of the stream |
+| 8 | `Status` | `U32LE` | `0` (Success) or Error | APX Error Code (`0` indicates success) |
+| 12 | `BlockSize` | `U32LE` | $1$ – $2^{32}-1$ | Negotiated maximum block size |
+| 16 | `WindowBlocks` | `U16LE` | $1$ – $65535$ | Accepted receive window (blocks) |
+| 18 | `Flags` | `U16LE` | `0` | Reserved; MUST be zero |
+
+Total size: **20 bytes**.
+
+On success:
+- `BlockSize <= min(published FileSize, requested MaxBlockSize)`
+- `WindowBlocks <= requested WindowBlocks`
+- Both `BlockSize` and `WindowBlocks` MUST be greater than zero.
+
+```text
+Receiver                                           Publisher
+   |                                                   |
+   |<-- RMF_CMD_FILE_INFO(FileStream, FileSize) -------|
+   |                                                   |
+   |--- RMF_CMD_STREAM_OPEN -------------------------->|
+   |    MaxBlockSize, WindowBlocks                     |
+   |                                                   |
+   |<-- RMF_CMD_STREAM_OPEN_RSP -----------------------|
+   |    Status=0, BlockSize, WindowBlocks              |
+   |                                                   |
+   |<== Stream blocks (subject to credit window) ======|
+```
+
+The publisher MUST NOT transmit stream data blocks before emitting a successful `RMF_CMD_STREAM_OPEN_RSP`.
+
+---
+
+### Credit-Based Flow Control
+
+To protect resource-constrained nodes from buffer exhaustion and isolate streams from general socket traffic, `FileStream` implements cumulative credit-based flow control:
+
+#### StreamWindowUpdate Command (`RMF_CMD_STREAM_WINDOW_UPDATE`)
+
+Sent by the stream receiver to the publisher to report consumed blocks and grant transmission credit.
+
+| Offset | Field | Type | Value Range | Description |
+|:---:|:---|:---|:---|:---|
+| 0 | `CmdType` | `U32LE` | `27` (`RMF_CMD_STREAM_WINDOW_UPDATE`) | Command Identifier |
+| 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of open stream |
+| 8 | `ConsumedBlockCount` | `U64LE` | $0$ – $2^{64}-1$ | Cumulative count of consumed complete blocks |
+
+Total size: **16 bytes**.
+
+#### Flow Control Rules
+
+1. **Credit Invariant**: At any moment, the publisher MUST satisfy:
+   $$\text{TransmittedBlockCount} - \text{ConsumedBlockCount} \le \text{WindowBlocks}$$
+2. **Block Consumption**: A block is considered consumed only after the receiver application layer has processed and released it from the receive buffer.
+3. **Update Batching**: The receiver SHOULD batch window updates to avoid control traffic congestion. An update SHOULD be transmitted whenever at least $50\%$ of `WindowBlocks` has been consumed since the prior update, or when the consumed count reaches the current window limit.
+
+---
+
+### Stream Abort
+
+Either peer may terminate an active stream without tearing down the underlying physical connection:
+
+#### StreamAbort Command (`RMF_CMD_STREAM_ABORT`)
+
+| Offset | Field | Type | Value Range | Description |
+|:---:|:---|:---|:---|:---|
+| 0 | `CmdType` | `U32LE` | `28` (`RMF_CMD_STREAM_ABORT`) | Command Identifier |
+| 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of stream |
+| 8 | `Status` | `U32LE` | Error Code | Non-zero APX Error Code describing the reason |
+
+Total size: **12 bytes**.
+
+Upon sending or receiving `RMF_CMD_STREAM_ABORT`:
+- Any partially received or incomplete block is discarded.
+- In-flight queued blocks are released.
+- Flow control state and window allocations are reset.
+- The stream transitions back to the announced/closed state, and may subsequently be re-opened with `RMF_CMD_STREAM_OPEN`.
+
 ## Comparison: RemoteFile v1.0 vs v1.1
 
 The following table summarizes the protocol changes between RemoteFile v1.0 and RemoteFile v1.1:
@@ -523,4 +667,5 @@ The following table summarizes the protocol changes between RemoteFile v1.0 and 
 | **Signed File Publication** | Not supported | `RMF_CMD_PUBLISH_SIGNED_FILE` (ECDSA P-256, 64-byte signature) |
 | **Connection Monitoring** | Not supported | `RMF_CMD_CONNECTION_CREATE`, `RMF_CMD_CONNECTION_REVOKE` |
 | **Virtual File Types** | Fixed (`0`), Dynamic (`1`), Stream (`2`) | Fixed (`0`), Dynamic8 (`1`), Dynamic16 (`2`), Dynamic32 (`3`), Device (`4`), Stream (`5`) |
+| **Stream Files** | Reserved type (`2`), undefined semantics | Fully specified `FileStream` (`5`), discrete block writes, negotiated buffer size, cumulative credit flow control (`RMF_CMD_STREAM_*`), and stream abort |
 | **Backward Compatibility** | Client baseline | Server supports both v1.0 and v1.1 clients simultaneously |
