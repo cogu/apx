@@ -8,13 +8,14 @@ For an architectural overview, memory model rationale, and high-level diagrams, 
 
 ## Overview of RemoteFile v1.1
 
-RemoteFile v1.1 extends the baseline RemoteFile v1.0 protocol with enhanced handshake negotiation, explicit error signaling, server runtime monitoring, and cryptographic authentication:
+RemoteFile v1.1 extends the baseline RemoteFile v1.0 protocol with enhanced handshake negotiation, explicit error signaling, compressed definitions, stream files, and cryptographic authentication:
 
 - **Protocol Greeting & Handshake**: Employs protocol identifier `RMFP/1.1\n` with explicit framing size (`Message-Size`) and client role (`Connection-Type`) declarations.
 - **Connection Identifier Assignment (`RMF_CMD_ACCEPT_HEADER`)**: Replaces the basic acknowledgement response with an explicit command delivering a server-assigned 32-bit connection ID.
 - **Rich Error Reporting (`RMF_CMD_NACK`)**: Expands negative acknowledgement from an empty opcode into a structured command containing a 32-bit error code and an optional node name string.
 - **Cryptographic File Authentication (`RMF_CMD_PUBLISH_SIGNED_FILE`)**: Introduces file publication with attached digital signatures (ECDSA P-256), enabling zero-trust authentication of node interfaces.
-- **Runtime Connection Monitoring (`RMF_CMD_CONNECTION_CREATE`, `RMF_CMD_CONNECTION_REVOKE`)**: Allows monitoring extensions to receive real-time connection lifecycle events.
+- **Compressed Definition Transfer (`RMF_CMD_PUBLISH_COMPRESSED_FILE`, `RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE`)**: Supports unsigned and signed APX definitions using zlib-wrapped DEFLATE, including payloads precompressed during embedded code generation.
+- **Application-Level Events**: Monitoring and logging events use independent event identifiers carried in stream payloads, not RemoteFile control-command identifiers.
 - **Stream Files (`FileStream`)**: Formalizes block-preserving streaming over RemoteFile with dedicated buffer negotiation (`RMF_CMD_STREAM_OPEN`, `RMF_CMD_STREAM_OPEN_RSP`), cumulative credit-based flow control (`RMF_CMD_STREAM_WINDOW_UPDATE`), and per-stream abort signaling (`RMF_CMD_STREAM_ABORT`).
 - **Expanded File Types**: Formalizes support for dynamic files with 8-, 16-, and 32-bit length headers, device files, and streaming FIFO queues.
 
@@ -29,7 +30,7 @@ RemoteFile models communication as bidirectional memory synchronization. Each pe
 | **Local Map** | `0x00000000` – `0x3FFFFBFF` | Mapped files owned and published by the local endpoint (1,073,740,800 bytes). |
 | **Remote Map** | `0x00000000` – `0x3FFFFFFF` | Mirrored files published by the remote peer, including the control area (1,073,741,824 bytes). |
 
-The last 1KB (1024 bytes) of the remote address space (`0x3FFFFC00` – `0x3FFFFFFF`) is reserved for the **Control Area**, which is used to exchange commands such as file announcements, open/close requests, and connection lifecycle events.
+The last 1KB (1024 bytes) of the remote address space (`0x3FFFFC00` – `0x3FFFFFFF`) is reserved for the **Control Area**, which is used to exchange commands such as file announcements, open/close requests, and stream control.
 
 ### Normative Addressing Rules
 
@@ -265,14 +266,13 @@ The first 4 bytes (`U32LE`) of any control command payload identify the command:
 | `RMF_CMD_FILE_OPEN` | 10 | v1.0 | Open a published file |
 | `RMF_CMD_FILE_CLOSE` | 11 | v1.0 | Close an opened file |
 | `RMF_CMD_ACCEPT_HEADER` | 20 | v1.1 | Handshake Protocol Header Accepted with Connection ID |
-| `RMF_CMD_CONNECTION_CREATE` | 21 | v1.1 | New connection created notification |
-| `RMF_CMD_CONNECTION_REVOKE` | 22 | v1.1 | Connection closed / revoked notification |
-| `RMF_CMD_PUBLISH_SIGNED_FILE` | 23 | v1.1 | Publish / announce a cryptographically signed file |
-| `RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE` | 24 | v1.1 | Publish / announce a Deflate-compressed signed file |
-| `RMF_CMD_STREAM_OPEN` | 25 | v1.1 | Open stream file with buffer & window negotiation |
-| `RMF_CMD_STREAM_OPEN_RSP` | 26 | v1.1 | Stream open response with negotiated parameters |
-| `RMF_CMD_STREAM_WINDOW_UPDATE` | 27 | v1.1 | Cumulative credit window update for stream flow control |
-| `RMF_CMD_STREAM_ABORT` | 28 | v1.1 | Abort stream file session |
+| `RMF_CMD_PUBLISH_SIGNED_FILE` | 21 | v1.1 | Publish / announce a cryptographically signed file |
+| `RMF_CMD_PUBLISH_COMPRESSED_FILE` | 22 | v1.1 | Publish / announce a zlib-compressed unsigned APX definition |
+| `RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE` | 23 | v1.1 | Publish / announce a zlib-compressed signed APX definition |
+| `RMF_CMD_STREAM_OPEN` | 24 | v1.1 | Open stream file with buffer & window negotiation |
+| `RMF_CMD_STREAM_OPEN_RSP` | 25 | v1.1 | Stream open response with negotiated parameters |
+| `RMF_CMD_STREAM_WINDOW_UPDATE` | 26 | v1.1 | Cumulative credit window update for stream flow control |
+| `RMF_CMD_STREAM_ABORT` | 27 | v1.1 | Abort stream file session |
 
 ---
 
@@ -332,7 +332,7 @@ Total size: $8 + 	ext{strlen(NodeName)} + 1$ bytes (minimum **9 bytes**).
 ### File Management Commands
 
 **FileInfo Command (`RMF_CMD_FILE_INFO`):**
-Announces that an unauthenticated file is available and mapped at a specific start address in the sender's local memory map.
+Announces that an unauthenticated, uncompressed file is available and mapped at a specific start address in the sender's local memory map. This is the legacy unsigned `PUBLISH_FILE` command.
 
 | Offset | Field | Type | Value Range | Description |
 |:---:|:---|:---:|:---|:---|
@@ -347,11 +347,11 @@ Announces that an unauthenticated file is available and mapped at a specific sta
 The total size of the `FileInfo` structure is $48 + 	ext{strlen(FileName)} + 1$ bytes. Because the maximum command length is 1024 bytes, the maximum file name length is **975 bytes** (excluding the null terminator).
 
 **PublishSignedFile Command (`RMF_CMD_PUBLISH_SIGNED_FILE`):**
-Announces a cryptographically signed file. This command is typically used to publish `.apx` node definition files accompanied by an asymmetric digital signature for peer authentication.
+Announces a cryptographically signed, uncompressed file. This command is typically used to publish `.apx` node definition files accompanied by an asymmetric digital signature for definition-content authentication.
 
 | Offset | Field | Type | Value Range | Description |
 |:---:|:---|:---:|:---|:---|
-| 0 | `CmdType` | `U32LE` | `23` (`RMF_CMD_PUBLISH_SIGNED_FILE`) | Command Identifier |
+| 0 | `CmdType` | `U32LE` | `21` (`RMF_CMD_PUBLISH_SIGNED_FILE`) | Command Identifier |
 | 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of the file |
 | 8 | `FileSize` | `U32LE` | `0` – `0x3FFFFC00` | Maximum size of the file in bytes |
 | 12 | `FileType` | `U16LE` | `0` – `5` | File type descriptor (see below) |
@@ -361,30 +361,74 @@ Announces a cryptographically signed file. This command is typically used to pub
 
 The fixed header size of `PublishSignedFile` is **80 bytes**. The total structure size is $80 + 	ext{strlen(FileName)} + 1$ bytes. The maximum file name length is **943 bytes** (excluding the null terminator).
 
-**PublishSignedCompressedFile Command (`RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE`):**
-Announces a cryptographically signed file whose wire payload is compressed (e.g. via Deflate) to minimize transfer latency during startup. The cryptographic signature is computed over the uncompressed payload, ensuring end-to-end cryptographic integrity.
+#### Compressed Definition Transfer
+
+Compression is independent of signing. The following commands announce immutable, fixed-size `.apx` definition files with compressed wire payloads, using separate unsigned and signed publication forms. Ordinary uncompressed publication remains unchanged.
+
+**PublishCompressedFile Command (`RMF_CMD_PUBLISH_COMPRESSED_FILE`):**
+Announces an unsigned compressed definition, optionally accompanied by a SHA-256 digest of the uncompressed bytes.
 
 | Offset | Field | Type | Value Range | Description |
 |:---:|:---|:---:|:---|:---|
-| 0 | `CmdType` | `U32LE` | `24` (`RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE`) | Command Identifier |
-| 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of the file |
-| 8 | `UncompressedSize` | `U32LE` | `0` – `0x3FFFFC00` | Decompressed size of the file in bytes |
-| 12 | `CompressedSize` | `U32LE` | `0` – `0x3FFFFC00` | Total compressed bytes transmitted over the wire |
-| 16 | `FileType` | `U16LE` | `0` – `5` | File type descriptor (typically `0` = `FixedFile`) |
-| 18 | `CompressionType` | `U16LE` | `0` – `1` | Compression algorithm (see below) |
-| 20 | `SignatureType` | `U16LE` | `0` – `1` | Cryptographic signature type (see below) |
-| 22 | `Reserved` | `U16LE` | `0` | Reserved for alignment; MUST be zero |
+| 0 | `CmdType` | `U32LE` | `22` (`RMF_CMD_PUBLISH_COMPRESSED_FILE`) | Command Identifier |
+| 4 | `StartAddress` | `U32LE` | `0` - `0x3FFFFBFF` | Start address of the encoded file |
+| 8 | `UncompressedSize` | `U32LE` | `1` - `0x3FFFFC00` | Exact decoded definition size |
+| 12 | `CompressedSize` | `U32LE` | `1` - `0x3FFFFC00` | Exact encoded payload size |
+| 16 | `FileType` | `U16LE` | `0` | `FixedFile` only |
+| 18 | `CompressionType` | `U16LE` | `1` | `ZlibDeflate` |
+| 20 | `DigestType` | `U16LE` | `0` or `2` | `NoDigest` or `SHA-256` over decoded bytes |
+| 22 | `Reserved` | `U16LE` | `0` | MUST be zero |
+| 24 | `DigestData` | `UINT8[32]` | Bytes | SHA-256 digest; all zero when `DigestType = 0` |
+| 56 | `FileName` | String | ASCII | Null-terminated original `.apx` file name |
+
+The fixed header size is **56 bytes**. The total command size is `56 + strlen(FileName) + 1`; the maximum file name length is **967 bytes**, excluding the terminator.
+
+**PublishSignedCompressedFile Command (`RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE`):**
+Announces a signed compressed definition. As for uncompressed signed publication, the signature uses ECDSA-P256 with SHA-256 over the exact uncompressed definition bytes, not the compressed stream.
+
+| Offset | Field | Type | Value Range | Description |
+|:---:|:---|:---:|:---|:---|
+| 0 | `CmdType` | `U32LE` | `23` (`RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE`) | Command Identifier |
+| 4 | `StartAddress` | `U32LE` | `0` - `0x3FFFFBFF` | Start address of the encoded file |
+| 8 | `UncompressedSize` | `U32LE` | `1` - `0x3FFFFC00` | Exact decoded definition size |
+| 12 | `CompressedSize` | `U32LE` | `1` - `0x3FFFFC00` | Exact encoded payload size |
+| 16 | `FileType` | `U16LE` | `0` | `FixedFile` only |
+| 18 | `CompressionType` | `U16LE` | `1` | `ZlibDeflate` |
+| 20 | `SignatureType` | `U16LE` | `1` | `ECDSA_P256` |
+| 22 | `Reserved` | `U16LE` | `0` | MUST be zero |
 | 24 | `SignatureData` | `UINT8[64]` | Bytes | 64-byte signature over uncompressed data |
 | 88 | `FileName` | String | ASCII | Null-terminated file name string |
 
-The fixed header size of `PublishSignedCompressedFile` is **88 bytes**. The total structure size is $88 + \text{strlen(FileName)} + 1$ bytes. The maximum file name length is **935 bytes** (excluding the null terminator).
+The fixed header size is **88 bytes**. The total command size is `88 + strlen(FileName) + 1`; the maximum file name length is **935 bytes**, excluding the terminator. All integer fields are encoded explicitly in little-endian order; native struct padding is not part of either command.
 
-#### CompressionType Values
+**CompressionType Values:**
 
 | Value | Identifier | Description |
 |:---:|:---|:---|
-| `0` | `NoCompression` | Payload is uncompressed |
-| `1` | `Deflate` | Raw Deflate compression (RFC 1951) |
+| `0` | `NoCompression` | Not valid in the compressed commands; use existing uncompressed publication |
+| `1` | `ZlibDeflate` | One zlib stream (RFC 1950) containing DEFLATE data (RFC 1951) |
+
+`ZlibDeflate` requires compression method 8, a window no larger than 32 KiB, and no preset dictionary (`FDICT = 0`). The receiver MUST validate the zlib header and Adler-32 trailer. Raw DEFLATE, gzip, concatenated streams, and trailing bytes are not valid for this identifier.
+
+**Addressing and Transfer Rules:**
+
+* The mapped RemoteFile range is `[StartAddress, StartAddress + CompressedSize)`. Validate `CompressedSize <= 0x3FFFFC00 - StartAddress` before mapping or allocating; `UncompressedSize` does not determine the wire address range.
+* Use the original `.apx` name. The encoded bytes represent the transfer, while the decoded bytes represent the logical APX definition.
+* When a transfer is required, open the encoded file with the ordinary `RMF_CMD_FILE_OPEN`. An unsigned cache hit may avoid opening the file, as specified below. Each open starts at offset zero and transfers the full immutable stream using sequential, non-overlapping data writes. Writes with gaps, overlap, or bytes outside the declared range are invalid.
+* Intermediate writes set `MORE_BIT = 1`; the final write sets `MORE_BIT = 0` and MUST end at exactly `CompressedSize`. Reject an early final write, an oversized write, or further data after completion unless a new open has started a fresh transfer.
+* Successful decoding MUST consume exactly `CompressedSize` bytes, reach the end of one valid zlib stream, and produce exactly `UncompressedSize` bytes. Bound output during decoding, not only after it finishes.
+* Sizes, digests, and signatures exclude any C-string terminator added by an implementation. No line-ending normalization or other text transformation is permitted between decoding and integrity verification.
+* Apply implementation-defined per-definition and aggregate in-flight resource limits before allocation, including overflow-safe space for any local text terminator. On failure, revoke, timeout, reopen, or disconnect, discard partial state and release resources. A reopened transfer starts with a fresh decoder.
+
+**Integrity, Errors, and Compatibility:**
+
+* When an unsigned definition with `DigestType = 2` is transferred, it MUST pass SHA-256 verification over the decoded bytes before acceptance. A validated cache entry may instead supply the definition without transfer, as specified below. A digest or Adler-32 checksum is not authentication.
+* A signed publication MUST pass ECDSA-P256/SHA-256 verification over the decoded bytes against trusted keys before acceptance. A receiver requiring signed nodes MUST reject unsigned compressed publication with `APX_SIGNATURE_MISSING_ERROR`, just as it rejects unsigned uncompressed publication.
+* Do not parse, register, or route a node until the applicable transfer-validation or cache-hit requirements below are satisfied. Cache identities refer to uncompressed content; compression does not introduce a signed-transfer verification bypass.
+* Report unsupported compression/digest/signature types with `APX_UNSUPPORTED_ERROR`; invalid command fields, address ranges, or size limits with `APX_INVALID_ARGUMENT_ERROR`; malformed streams, transfer-length errors, or digest mismatches with `APX_PARSE_ERROR`; and invalid signatures with `APX_SIGNATURE_VERIFICATION_ERROR`. Use NACK when the connection remains usable and normal local diagnostics otherwise. A missing signature is reported with `APX_SIGNATURE_MISSING_ERROR`.
+* Encoding and signing choices are independent of codec library and compression level. Generated embedded clients may contain only the selected representation and require no runtime codec.
+* Compression-capable peers must be selected by deployment configuration or generation-time knowledge. An RMFP 1.1 greeting alone does not prove that an older development implementation supports these additions. No capability negotiation or automatic fallback is specified here.
+* For v1.0/v0.2.8 compatibility, use the legacy greeting, unsigned `RMF_CMD_FILE_INFO` publication (also named `RMF_CMD_PUBLISH_FILE_MSG` in c-apx), and plain definition bytes. Do not assume legacy peers return a structured NACK for unknown commands, and never send compressed data under an uncompressed announcement.
 
 #### FileType Values
 
@@ -412,18 +456,39 @@ The fixed header size of `PublishSignedCompressedFile` is **88 bytes**. The tota
 | `0` | `NoSignature` | No cryptographic signature provided |
 | `1` | `ECDSA_P256` | 64-byte raw ECDSA signature over NIST P-256 curve (concatenated 32-byte $r$ and 32-byte $s$ integers) |
 
+#### Definition Cache Interaction
+
+Caching is optional and does not change the publication layouts. All four publication variants can reuse compatible compiled definitions. SHA-256 cache identities, optional advertised digests, and signatures refer to the exact **uncompressed definition bytes**, excluding any local C-string terminator.
+
+| Publication | Skip definition transfer on a cache hit? | Reuse a compatible compiled definition? |
+|:---|:---|:---|
+| `RMF_CMD_FILE_INFO` / `PUBLISH_FILE` (3) | Yes, with an advertised SHA-256 matching a valid local cache entry | Yes |
+| `RMF_CMD_PUBLISH_SIGNED_FILE` (21) | No; request the definition and verify its signature | Yes, after verification |
+| `RMF_CMD_PUBLISH_COMPRESSED_FILE` (22) | Yes, with an advertised SHA-256 matching a valid local cache entry | Yes |
+| `RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE` (23) | No; request, decompress, and verify the definition | Yes, after verification |
+
+For either unsigned form, check signed-node policy before consulting the cache. If unsigned definitions are permitted and `DigestType = 2`, a receiver MAY use a valid cached text or compiled definition matching the advertised SHA-256, node identity, and logical definition size instead of sending `RMF_CMD_FILE_OPEN`. Validate cached content and compiled-format/compiler/VM compatibility as applicable. A text-only hit still requires parsing and compilation, but neither a text nor compiled hit requires definition transfer or decompression. No definition-transfer buffers or decoder state are needed for this fast path.
+
+If caching is disabled, no usable digest is advertised, or no valid matching entry exists, request the file and validate the transferred definition normally. After transfer, the receiver may compute SHA-256 and reuse a compatible compiled entry even when no digest was advertised.
+
+For either signed form, the receiver MUST request the full definition on every connection and verify the signature against the received uncompressed bytes before using a compiled cache entry. For the compressed form, bounded decompression and stream validation precede signature verification. The resulting SHA-256 can then identify compatible precompiled content and bypass parsing/compilation; a cache hit MUST NOT bypass transfer or verification under this policy.
+
+An unsigned digest, a matching cached definition, or the zlib checksum does not authenticate a client and cannot satisfy a signed-node requirement. A definition signature authenticates content, not client identity, freshness, or possession of a signing key. Invalid transferred content MUST be rejected rather than replaced by a cached success.
+
+Precompression and signing may both happen during embedded code generation or a build step. An APX-ES node may store only the compressed byte array, its lengths, and the signature; it requires neither a runtime codec nor an on-device signing key to publish that definition.
+
 #### Signed File Verification Flow
 
 When a server is configured with `require-signed-nodes = true`:
 
-1. **Publication**: The client sends `RMF_CMD_PUBLISH_SIGNED_FILE` with `SignatureType = 1` (`ECDSA_P256`) and the 64-byte signature extracted from the node's companion `.sig` file.
+1. **Publication**: The client sends `RMF_CMD_PUBLISH_SIGNED_FILE`, or `RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE` for a compressed definition, with `SignatureType = 1` (`ECDSA_P256`) and the 64-byte signature over the exact definition bytes.
 2. **Open Request**: The server maps the remote file and sends `RMF_CMD_FILE_OPEN`.
-3. **Data Transmission**: The client writes the complete `.apx` definition payload to the remote address.
-4. **Signature Verification**: Upon receiving the full file (`MORE_BIT = 0`), the server computes the SHA-256 hash of the payload and verifies the ECDSA signature against its list of configured trusted public keys.
+3. **Data Transmission**: The client writes the complete plain or compressed definition payload to the remote address, according to its announcement.
+4. **Signature Verification**: Upon receiving the full file (`MORE_BIT = 0`), the server first performs bounded decompression if applicable, then computes SHA-256 over the exact uncompressed definition bytes and verifies the ECDSA signature against its configured trusted public keys.
 5. **Acceptance / Rejection**:
-   - If verified: The server parses the definition and publishes corresponding `.in` / `.out` / `.cout` / `.cin` files.
+   - If verified: The server loads a compatible compiled cache entry identified by the verified definition's SHA-256, or parses and compiles the received definition if no usable compiled entry exists, then publishes corresponding `.in` / `.out` / `.cout` / `.cin` files.
    - If verification fails: The server transmits `RMF_CMD_NACK` with `ErrorCode = 80` (`APX_SIGNATURE_VERIFICATION_ERROR`) and the node's name, discarding the untrusted node.
-   - If an unsigned announcement (`RMF_CMD_FILE_INFO`) is received for a node definition: The server rejects the node with `ErrorCode = 79` (`APX_SIGNATURE_MISSING_ERROR`).
+   - If an unsigned announcement (`RMF_CMD_FILE_INFO` or `RMF_CMD_PUBLISH_COMPRESSED_FILE`) is received for a node definition: The server rejects the node with `ErrorCode = 79` (`APX_SIGNATURE_MISSING_ERROR`).
 
 **FileRevoke Command (`RMF_CMD_REVOKE_FILE`):**
 Unmaps a previously announced file. If the remote peer currently has the file open, it is automatically closed.
@@ -442,40 +507,11 @@ Multiple `FileInfo` or `PublishSignedFile` structures may be packed into a singl
 
 ---
 
-### Connection Lifecycle & Monitoring Commands
+### Monitoring and Application Events
 
-These commands are emitted by the server to connections operating in `Monitor` mode (`Connection-Type: Monitor`), allowing runtime diagnostic utilities (such as `apx-info`) to track client connections in real time.
+Monitoring and logging use application-defined event records carried in `FileStream` payloads. Connection-create/close, file, and other event identifiers belong to that independent event namespace, not to the RemoteFile control-command namespace.
 
-**ConnectionCreate Command (`RMF_CMD_CONNECTION_CREATE`):**
-Notifies monitoring clients that a new peer connection has connected and entered a given state.
-
-| Offset | Field | Type | Value Range | Description |
-|:---:|:---|:---:|:---|:---|
-| 0 | `CmdType` | `U32LE` | `21` (`RMF_CMD_CONNECTION_CREATE`) | Command Identifier |
-| 4 | `ConnectionId` | `U32LE` | $0$ – $2^{32}-1$ | Unique connection identifier |
-| 8 | `ConnectionState` | `UINT8` | `0` – `3` | Connection state (see below) |
-| 9 | `ConnectionTag` | String | ASCII | Null-terminated string label or client address |
-
-Total size: $9 + 	ext{strlen(ConnectionTag)} + 1$ bytes.
-
-#### ConnectionState Values
-
-| Value | Identifier | Description |
-|:---:|:---|:---|
-| `0` | `APX_CONNECTION_STATE_CREATED` | Connection object created |
-| `1` | `APX_CONNECTION_STATE_CONNECTING` | Physical socket connection established, greeting pending |
-| `2` | `APX_CONNECTION_STATE_ACCEPTED` | Protocol greeting accepted and active |
-| `3` | `APX_CONNECTION_STATE_CLOSED` | Connection terminated |
-
-**ConnectionRevoke Command (`RMF_CMD_CONNECTION_REVOKE`):**
-Notifies monitoring clients that an active connection has disconnected or has been closed.
-
-| Offset | Field | Type | Value Range | Description |
-|:---:|:---|:---|:---|:---|
-| 0 | `CmdType` | `U32LE` | `22` (`RMF_CMD_CONNECTION_REVOKE`) | Command Identifier |
-| 4 | `ConnectionId` | `U32LE` | $0$ – $2^{32}-1$ | Identifier of the revoked connection |
-
-Total size: **8 bytes**.
+RemoteFile provides publication, stream transport, and flow control for those records. It does not allocate control commands for individual application events; the previous draft's connection-lifecycle and monitor file-publication commands are obsolete.
 
 ---
 
@@ -519,7 +555,7 @@ Echoes back the fields from the corresponding `Ping Request`.
 ### File Open & Close Commands
 
 **FileOpen Command (`RMF_CMD_FILE_OPEN`):**
-Requests to open a remote file announced via a preceding `FileInfo` or `PublishSignedFile` command.
+Requests to open a remote file announced via any of the four publication commands. For compressed definitions, the requested data is the encoded stream described by `CompressedSize`. An accepted unsigned definition cache hit can make this request unnecessary.
 
 | Offset | Field | Type | Value Range | Description |
 |:---:|:---|:---:|:---|:---|
@@ -562,7 +598,7 @@ Sent by the file receiver to the file publisher to request opening a published `
 
 | Offset | Field | Type | Value Range | Description |
 |:---:|:---|:---|:---|:---|
-| 0 | `CmdType` | `U32LE` | `25` (`RMF_CMD_STREAM_OPEN`) | Command Identifier |
+| 0 | `CmdType` | `U32LE` | `24` (`RMF_CMD_STREAM_OPEN`) | Command Identifier |
 | 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of published `FileStream` |
 | 8 | `MaxBlockSize` | `U32LE` | $1$ – $2^{32}-1$ | Largest block size (bytes) accepted by receiver |
 | 12 | `WindowBlocks` | `U16LE` | $1$ – $65535$ | Maximum unconsumed complete blocks receiver can buffer |
@@ -576,7 +612,7 @@ Sent by the stream publisher to the receiver in response to `RMF_CMD_STREAM_OPEN
 
 | Offset | Field | Type | Value Range | Description |
 |:---:|:---|:---|:---|:---|
-| 0 | `CmdType` | `U32LE` | `26` (`RMF_CMD_STREAM_OPEN_RSP`) | Command Identifier |
+| 0 | `CmdType` | `U32LE` | `25` (`RMF_CMD_STREAM_OPEN_RSP`) | Command Identifier |
 | 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of the stream |
 | 8 | `Status` | `U32LE` | `0` (Success) or Error | APX Error Code (`0` indicates success) |
 | 12 | `BlockSize` | `U32LE` | $1$ – $2^{32}-1$ | Negotiated maximum block size |
@@ -618,7 +654,7 @@ Sent by the stream receiver to the publisher to report consumed blocks and grant
 
 | Offset | Field | Type | Value Range | Description |
 |:---:|:---|:---|:---|:---|
-| 0 | `CmdType` | `U32LE` | `27` (`RMF_CMD_STREAM_WINDOW_UPDATE`) | Command Identifier |
+| 0 | `CmdType` | `U32LE` | `26` (`RMF_CMD_STREAM_WINDOW_UPDATE`) | Command Identifier |
 | 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of open stream |
 | 8 | `ConsumedBlockCount` | `U64LE` | $0$ – $2^{64}-1$ | Cumulative count of consumed complete blocks |
 
@@ -641,7 +677,7 @@ Either peer may terminate an active stream without tearing down the underlying p
 
 | Offset | Field | Type | Value Range | Description |
 |:---:|:---|:---|:---|:---|
-| 0 | `CmdType` | `U32LE` | `28` (`RMF_CMD_STREAM_ABORT`) | Command Identifier |
+| 0 | `CmdType` | `U32LE` | `27` (`RMF_CMD_STREAM_ABORT`) | Command Identifier |
 | 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of stream |
 | 8 | `Status` | `U32LE` | Error Code | Non-zero APX Error Code describing the reason |
 
@@ -665,7 +701,8 @@ The following table summarizes the protocol changes between RemoteFile v1.0 and 
 | **Handshake Response** | `RMF_CMD_ACK` (4 bytes) | `RMF_CMD_ACCEPT_HEADER` (8 bytes, includes `ConnectionId`) |
 | **Error Signaling** | Empty `RMF_CMD_NACK` (opcode only) | Structured `RMF_CMD_NACK` with `ErrorCode` and `NodeName` |
 | **Signed File Publication** | Not supported | `RMF_CMD_PUBLISH_SIGNED_FILE` (ECDSA P-256, 64-byte signature) |
-| **Connection Monitoring** | Not supported | `RMF_CMD_CONNECTION_CREATE`, `RMF_CMD_CONNECTION_REVOKE` |
+| **Compressed Definitions** | Not supported; publish plain text | Unsigned or signed zlib-wrapped DEFLATE publication |
+| **Monitoring / Logging Events** | No dedicated event commands | Independent application event records carried in `FileStream` payloads |
 | **Virtual File Types** | Fixed (`0`), Dynamic (`1`), Stream (`2`) | Fixed (`0`), Dynamic8 (`1`), Dynamic16 (`2`), Dynamic32 (`3`), Device (`4`), Stream (`5`) |
 | **Stream Files** | Reserved type (`2`), undefined semantics | Fully specified `FileStream` (`5`), discrete block writes, negotiated buffer size, cumulative credit flow control (`RMF_CMD_STREAM_*`), and stream abort |
 | **Backward Compatibility** | Client baseline | Server supports both v1.0 and v1.1 clients simultaneously |
