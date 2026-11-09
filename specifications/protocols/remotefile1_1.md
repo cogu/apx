@@ -592,11 +592,87 @@ Total size: **8 bytes**.
 
 RemoteFile v1.1 formalizes streaming communication through the `FileStream` descriptor (`FileType = 5`). While standard fixed files (`FileType = 0`) synchronize memory regions where successive writes overwrite bytes at specific offsets, stream files model sequential, discrete message queues.
 
-### Stream File Semantics
+### Reserved Address Range and Block-Size Limits
 
-1. **Block Preservation**: Each stream write begins at the stream mapped `StartAddress` (offset `0`). A stream message consists of one or more fragmented transport writes where all intermediate chunks set the `MORE_BIT` flag in the address header, and the terminating chunk clears `MORE_BIT = 0`. The reassembled payload constitutes a single discrete, atomic application block.
-2. **Zero Internal Framing Overhead**: Higher-level stream protocols (such as diagnostics and binary logging) do not require nested length headers. The combination of RemoteFile `NumHeader32` length framing and the `MORE_BIT` boundary delimiter completely defines the message boundary.
-3. **No Offset Writing**: The writer MUST always write to offset `0` of the stream file. Random access or partial offset updates are prohibited.
+A published stream reserves the virtual address range
+`[StartAddress, StartAddress + FileSize)`, with `FileSize > 0`. The range MUST
+fit below the Control Area and MUST NOT overlap another mapped file. Validate
+`FileSize <= 0x3FFFFC00 - StartAddress` after checking
+`StartAddress < 0x3FFFFC00`, rather than relying on an addition that could
+overflow.
+
+The range is reused for every logical block. It is not persistent storage for
+the stream's history, and its size does not limit the total number of bytes
+that may be sent over the lifetime of the stream.
+
+`FileSize` limits the size of one **complete application block**, not merely
+the size of an individual transport fragment. The open handshake negotiates
+`BlockSize`, which may impose a smaller limit:
+
+```text
+1 <= CompleteBlockLength <= BlockSize <= FileSize
+```
+
+These lengths count application payload bytes only, excluding NumHeader and
+AddressHeader bytes. Fragmentation MUST NOT be used to bypass the complete
+block limit. The receive window may hold several blocks, but `WindowBlocks`
+does not enlarge the stream's reserved address range.
+
+### Logical Blocks and Transport Fragments
+
+1. **Block preservation:** One logical stream write carries one complete
+   application block. The receiver MUST preserve its boundary and deliver the
+   block only after the complete write has been reassembled.
+2. **Block start:** Every logical write MUST start at the stream's advertised
+   `StartAddress` (offset zero). An unfragmented block uses this address with
+   `MORE_BIT = 0`.
+3. **Fragment addresses:** A logical write MAY be split into several transport
+   messages. If `O` payload bytes of the current block precede a fragment, that
+   fragment's AddressHeader MUST target `StartAddress + O`. Intermediate
+   fragments set `MORE_BIT = 1`; the final fragment clears `MORE_BIT = 0`.
+4. **Bounds:** For a fragment containing `L` payload bytes, the receiver MUST
+   check `O <= BlockSize` and `L <= BlockSize - O` before accepting its data.
+   Together with `BlockSize <= FileSize`, this keeps all payload bytes inside
+   the reserved file range. A non-consecutive or oversized continuation MUST
+   be rejected as an invalid block, not dispatched as a write into a
+   neighbouring file.
+5. **Application delivery:** After the final fragment, the receiver delivers
+   the reassembled block with application offset zero. Fragment offsets are
+   not independent random-access writes to the stream file.
+6. **Range reuse:** The next logical block starts again at `StartAddress`.
+   Fragment offsets accumulate only within the current block; they MUST NOT
+   continue accumulating across blocks.
+
+NumHeader delimits each transport message, while `MORE_BIT` identifies the end
+of a logical block. Applications such as diagnostics and binary logging can
+therefore use one block per message without adding another message-length
+field. An application may concatenate completed block payloads if it wants a
+byte stream, but RemoteFile itself preserves the block boundaries.
+
+### Address-Range Example
+
+Suppose a stream is published at `StartAddress = 0x10000` with
+`FileSize = 2048 = 0x800`, and the negotiated `BlockSize` is also 2048.
+Its reserved range is `[0x10000, 0x10800)`.
+
+A 1536-byte block (`0x600` bytes) may be sent as:
+
+| Block | Fragment | Address | Payload bytes | `MORE_BIT` |
+|:---|:---|:---|:---|:---|
+| A | 1 | `0x10000` | 512 (`0x200`) | 1 |
+| A | 2 | `0x10200` | 512 (`0x200`) | 1 |
+| A | 3 | `0x10400` | 512 (`0x200`) | 0 |
+| B | 1, unfragmented | `0x10000` | 512 (`0x200`) | 0 |
+
+Block A uses payload addresses `0x10000` through `0x105FF`, then is delivered
+once as 1536 bytes. No padding is transmitted for the unused part of the range.
+Block B reuses the start address; it does not begin at `0x10600` or `0x10800`.
+A neighbouring file may start at `0x10800` without being written by either
+block.
+
+Block A requires both `FileSize` and negotiated `BlockSize` to be at least
+`0x600`. A stream with `FileSize = 512` cannot carry that block as three
+512-byte fragments: the limit applies to their combined payload size.
 
 ---
 
@@ -612,7 +688,7 @@ Sent by the file receiver to the file publisher to request opening a published `
 |:---:|:---|:---|:---|:---|
 | 0 | `CmdType` | `U32LE` | `24` (`RMF_CMD_STREAM_OPEN`) | Command Identifier |
 | 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of published `FileStream` |
-| 8 | `MaxBlockSize` | `U32LE` | $1$ – $2^{32}-1$ | Largest block size (bytes) accepted by receiver |
+| 8 | `MaxBlockSize` | `U32LE` | $1$ – $2^{32}-1$ | Largest complete block payload (bytes) accepted by receiver |
 | 12 | `WindowBlocks` | `U16LE` | $1$ – $65535$ | Maximum unconsumed complete blocks receiver can buffer |
 | 14 | `Flags` | `U16LE` | `0` | Reserved; MUST be zero |
 
@@ -627,7 +703,7 @@ Sent by the stream publisher to the receiver in response to `RMF_CMD_STREAM_OPEN
 | 0 | `CmdType` | `U32LE` | `25` (`RMF_CMD_STREAM_OPEN_RSP`) | Command Identifier |
 | 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of the stream |
 | 8 | `Status` | `U32LE` | `0` (Success) or Error | APX Error Code (`0` indicates success) |
-| 12 | `BlockSize` | `U32LE` | $1$ – $2^{32}-1$ | Negotiated maximum block size |
+| 12 | `BlockSize` | `U32LE` | $1$ – $2^{32}-1$ | Negotiated maximum complete block payload size |
 | 16 | `WindowBlocks` | `U16LE` | $1$ – $65535$ | Accepted receive window (blocks) |
 | 18 | `Flags` | `U16LE` | `0` | Reserved; MUST be zero |
 
@@ -678,6 +754,12 @@ Total size: **16 bytes**.
    $$\text{TransmittedBlockCount} - \text{ConsumedBlockCount} \le \text{WindowBlocks}$$
 2. **Block Consumption**: A block is considered consumed only after the receiver application layer has processed and released it from the receive buffer.
 3. **Update Batching**: The receiver SHOULD batch window updates to avoid control traffic congestion. An update SHOULD be transmitted whenever at least $50\%$ of `WindowBlocks` has been consumed since the prior update, or when the consumed count reaches the current window limit.
+4. **Blocks, not fragments**: Transmission and consumption counters count
+   complete logical blocks, not individual transport fragments. These counters
+   accumulate for the open stream session and are independent of fragment
+   offsets, which restart at zero for every block. Neither the counters nor
+   the receive window cause stream addresses to advance beyond the reserved
+   file range.
 
 ---
 
