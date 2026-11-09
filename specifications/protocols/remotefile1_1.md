@@ -47,7 +47,19 @@ The last 1KB (1024 bytes) of the remote address space (`0x3FFFFC00` – `0x3FFFF
 > 2. The total length of the write does not exceed 1024 bytes.
 
 **Rule 3 (Data Synchronization):**
-> As long as an opened file remains active, any local modification to that file's memory buffer must be immediately transmitted to the remote peer as a binary write command covering the modified byte range.
+> While an ordinary memory-mapped file remains open, local modifications must be
+> propagated to the remote mirror without unnecessary delay. An implementation
+> may batch updates during a bounded application operation and transmit coalesced
+> byte ranges when that operation completes. Coalesced writes may include
+> unchanged bytes between modified ranges, but must preserve the resulting file
+> contents and application-level ordering dependencies.
+>
+> This synchronizes memory state, not a history of every intermediate value
+> written during the operation.
+
+This rule does not permit coalescing or discarding `FileStream` blocks. Their
+message boundaries and delivery semantics are defined in the stream-file
+sections below.
 
 ---
 

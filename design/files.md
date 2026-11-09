@@ -119,9 +119,18 @@ Port values are serialized according to the **APX VM v2.1** specification:
 
 When a client updates an individual provide port $i$:
 1. The serialized bytes for port $i$ are written to local buffer offset $o_i$.
-2. RemoteFile transmits a write packet covering only $[o_i, o_i + s_i)$.
+2. RemoteFile transmits the changed range $[o_i, o_i + s_i)$.
 3. The APX server receives the delta, identifies port $i$ via its byte-to-port map, and
-   fans out the updated bytes to all connected require ports in peer `.in` files.
+   copies the updated bytes to connected require ports in peer `.in` buffers.
+4. For open peer files, the server sends the destination ranges immediately or
+   records them in an active routing batch. Closed files retain the updated state
+   for their next initial snapshot.
+
+A delta need not correspond to exactly one port. Routing batches may combine
+modified ranges, including small unchanged gaps, to reduce framing and queue
+overhead. Each combined write carries the current bytes for its entire range.
+See [Batched routing updates](session.md#batched-routing-updates-to-existing-peers)
+for the batching and flush-order rules.
 
 ---
 
@@ -189,16 +198,25 @@ The server updates `.cout` and `.cin` whenever the routing topology changes:
 1. When a client attaches, detaches, or connects to a port, the server recalculates the
    affected connector lists.
 2. If the connection count for port $i$ changes, the server writes the new 16-bit integer
-   into the client's `.cout` or `.cin` file at offset $i 	imes 2$.
-3. RemoteFile transmits the 2-byte delta write to the client node.
+   into its local `.cout` or `.cin` buffer at byte offset $2i$.
+3. For an open file, RemoteFile transmits the updated range, possibly combined with
+   other count changes in the same routing batch. For a closed file, the updated
+   counts are included in its next full snapshot.
 4. The client's runtime updates its local mirror and invokes optional connection change
    event callbacks registered by the application.
+
+During a routing batch, the server flushes `.cin` before `.cout`, then `.in`.
+This ensures count changes precede associated input-data changes on the same
+connection. It does not require a separate two-byte message for each count.
 
 ---
 
 ## Complete Node Lifecycle
 
-The coordination of all five virtual files progresses through the following sequence:
+The following sequence shows a node with both port directions and both count
+files enabled. Announcements of `.apx` and `.out` may arrive independently;
+the server waits for their initialization dependencies rather than assuming
+that they are published together.
 
 ```{mermaid}
 sequenceDiagram
@@ -208,24 +226,43 @@ sequenceDiagram
     participant Server as APX Server
 
     Note over Client,Server: RemoteFile Greeting Accepted
-    Client->>Server: Announce <Node>.apx & <Node>.out
-    Server->>Client: Open <Node>.apx & <Node>.out
-    Client->>Server: Write <Node>.apx (full IDL definition)
+    par Definition ingestion
+        Client->>Server: Announce <Node>.apx
+        Server->>Client: Open <Node>.apx
+        Client->>Server: Write <Node>.apx (complete definition)
+        Note over Server: Validate definition, parse IDL, and build port maps
+    and Provide-file availability
+        Client->>Server: Announce <Node>.out
+    end
+    Server->>Client: Open <Node>.out
     Client->>Server: Write <Node>.out (initial provide snapshot)
 
-    Note over Server: Server parses IDL & builds port maps
-    Server->>Client: Announce <Node>.in & <Node>.cout
-    Client->>Server: Open <Node>.in & <Node>.cout
+    Note over Server: Resolve routing and populate .cout, .cin, and .in in memory
+    Note over Server: Batch changes to existing peers with open files
+    Server->>Client: Announce <Node>.cout
+    Server->>Client: Announce <Node>.cin
+    Server->>Client: Announce <Node>.in
 
-    Note over Server: Server routes matching signals
-    Server->>Client: Write <Node>.in (initial require snapshot)
-    Server->>Client: Write <Node>.cout (initial subscriber counts)
+    Client->>Server: Open <Node>.cout
+    Client->>Server: Open <Node>.cin
+    Client->>Server: Open <Node>.in
+    Server->>Client: Write <Node>.cout (populated count snapshot)
+    Server->>Client: Write <Node>.cin (populated count snapshot)
+    Server->>Client: Write <Node>.in (populated input snapshot)
 
     Note over App,Server: Normal Operation
     App->>Client: Provide signal updated
     Client->>Server: Delta write <Node>.out (offset o_i, len s_i)
-    Server->>Client: Peer connects -> Delta write <Node>.cout (offset i*2, len 2)
+    Note over Server: A later peer connection changes several ports
+    Server->>Client: Coalesced <Node>.cin updates, if affected
+    Server->>Client: Coalesced <Node>.cout updates, if affected
+    Server->>Client: Coalesced <Node>.in updates, if affected
 ```
+
+For a node without provide ports, omit the `.out` steps. Omit other absent or
+disabled files as appropriate. Each initial snapshot is one logical write and
+may be fragmented into several RemoteFile messages. Opening the server-owned
+files delivers prepared state; it does not initiate the initial routing pass.
 
 ## Summary Checklist
 

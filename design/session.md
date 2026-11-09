@@ -70,18 +70,19 @@ has been accepted.
 ## Bringing a node online
 
 A node does not become usable through one monolithic handshake. Its definition,
-provide data, require data, and companion connection-count files progress
-independently as files are published, opened, and initialized. The definition is
-the dependency that lets the server construct the other data models.
+provide data, require data, and companion connection-count files have separate
+synchronization states, but their readiness has dependencies. The server first
+needs the definition and the initial provide values before it can populate the
+files it owns for that node.
 
 ```{uml} ../diagrams/session-node-bootstrap.puml
 ```
 
-This diagram intentionally shows parallel branches. Network scheduling and
-file availability allow readiness to be tracked on a per-file basis rather than
-a single monolithic phase. However, as explained below, the relative ordering of
-file announcements and file open requests between companion connection-count files
-and port-data files is strictly constrained.
+The client may announce `.apx` and `.out` independently, in either order. The
+server must not depend on them arriving together. The lifecycle below describes
+the readiness contract: a node with provide ports waits for its initial `.out`
+snapshot before server-file publication. A require-only node has no `.out`
+dependency.
 
 ### Definition synchronization
 
@@ -91,7 +92,7 @@ as `<Node>.apx`, optionally with a digest.
 
 When the server receives the `FileInfo` command, it creates a provisional node
 instance and opens the remote file. The server does not yet know the ports or
-their byte layout. It first receives the complete definition, parses it, and
+their byte layout. It first receives and validates the complete definition, parses it, and
 then creates:
 
 - provide- and require-port instances;
@@ -118,68 +119,75 @@ $$
 Require ports are laid out independently using the same rule. An offset in
 `.out` therefore has no implied relationship to the same offset in `.in`.
 
-The initial transfer is a full snapshot:
+The initial transfer of each file is a full snapshot:
 
 - opening `.out` causes the client to send its initialized provide buffer;
-- opening `.in` causes the server to connect available providers, update the
-  require buffer with their current values, and send the resulting snapshot.
+- before publishing its files, the server resolves port connections, copies
+  current provider values into the require buffer, and calculates connection
+  counts;
+- opening `.cout`, `.cin`, or `.in` causes the server to send the already
+  populated buffer. Opening `.in` is not the event that initiates routing.
+
+A bulk snapshot is one logical write, not necessarily one transport message.
+RemoteFile may fragment a large snapshot into several messages without changing
+the initialization dependency.
 
 After that snapshot, a write may cover one port, several adjacent ports, or a
 portion allowed by the underlying file API. The server uses its byte-to-port
 map to determine which provide ports are affected.
 
-### Ordering of file announcement and opening
+### Deferred server-file publication
 
-When nodes utilize companion connection-count files (`<Node>.cout` and `<Node>.cin`),
-the relative order of file announcements and file opening requests is critical for
-deterministic routing and race-free state transitions.
+The server separates creating a local buffer from publishing it to the client.
+Publishing a file means that the client may immediately request to open it, so
+the server prepares its initial contents before making that announcement.
 
-Opening the `<Node>.in` file causes the server to connect matching ports and compute
-initial signal routing. During this step, the server calculates connection counts for
-both provide and require ports and immediately emits count updates across the wire.
-If the connection-count files have not been established and opened prior to this event,
-these count updates could arrive before the client's mirrors are prepared, leading to
-missed notifications or out-of-order state transitions.
+The initialization phases are:
 
-To guarantee determinism, implementations must adhere to the following ordering rules:
+1. **Definition ingestion:** Validate and parse `.apx`, compile serialization
+   programs, and create port instances and local buffers.
+2. **Initial provide data:** If the node has provide ports, wait for `.out` to
+   be announced, open it, and receive the complete initial provide snapshot.
+3. **Routing and pre-population:** Connect the node's require ports to available
+   providers and its provide ports to waiting requesters. Populate its `.in`,
+   `.cin`, and `.cout` buffers in memory. Updates to existing peers are handled
+   through the batching mechanism described below.
+4. **Server-file publication:** Announce the prepared files in this order,
+   omitting files that do not exist:
+   1. `<Node>.cout`
+   2. `<Node>.cin`
+   3. `<Node>.in`
+5. **Initial delivery:** When the client opens each file, send its populated
+   snapshot.
 
-#### APX Server requirements
+This order deliberately opens `.out` **before** announcing the server-owned
+count and input files. There is no requirement to establish count mirrors before
+the initial provide snapshot. The server updates the joining node's closed
+buffers locally rather than sending per-port initialization deltas.
 
-The APX server must announce both companion connection-count files before announcing
-or opening the port-data files:
+The result is one logical snapshot per opened server-owned file instead of a
+snapshot followed by a large number of per-port catch-up writes. Later changes
+to files that have been opened still generate normal updates.
 
-1. **Announce `<Node>.cout`** (if provide-port counts are enabled).
-2. **Announce `<Node>.cin`** (if require-port counts are enabled).
-3. **Announce `<Node>.in`** (if require ports exist).
-4. **Request to open `<Node>.out`** (if provide ports exist).
+### Client open ordering
 
-Announcing `.cout` and `.cin` first ensures the client learns about the count files
-and can initiate their open requests before the server signals that require-port
-data is available.
+When the server publishes companion count files, the client prepares their
+mirrors and requests to open them before requesting `.in`:
 
-#### APX Client requirements
+1. `<Node>.cout`, if published.
+2. `<Node>.cin`, if published.
+3. `<Node>.in`, if published.
 
-The APX client must request to open both companion connection-count files (if they
-exist) before requesting to open the port-data files:
+This lets the client receive connection-count snapshots before the input-data
+snapshot. It does not trigger server-side matching: routing and initial buffer
+pre-population have already occurred before these files are announced.
 
-1. **Request to open `<Node>.cout`** (if published by the server).
-2. **Request to open `<Node>.cin`** (if published by the server).
-3. **Request to open `<Node>.in`** (after requesting both count files).
+### FIFO ordering within a connection
 
-By requesting to open `.cout` and `.cin` first, the client guarantees that its local
-count mirrors and buffers are ready to receive initial count snapshots and routing deltas
-the moment the server completes port connection upon opening `.in`.
-
-#### Deterministic FIFO ordering via worker queues
-
-In the reference implementation (`c-apx`), deterministic event handling is enforced by
-`apx_file_manager_worker_t`. The worker uses an internal ringbuffer queue that processes
-events and transmits commands in strict First-In, First-Out (FIFO) sequence.
-
-As long as the server enqueues `.cout` and `.cin` announcements before `.in`/`.out` events,
-and the client enqueues `.cout` and `.cin` open requests before `.in`/`.out` requests,
-the FIFO queue guarantees that all commands and events are dispatched across the wire
-in this exact sequence.
+In c-apx, the file-manager worker dispatches queued commands in First-In,
+First-Out (FIFO) order. This preserves the announcement and open-request order
+within a connection. It does not replace readiness checks or establish a
+global ordering across different client connections.
 
 ## How ports are matched
 
@@ -221,12 +229,55 @@ The update follows these steps:
    more provide ports.
 4. For every connector, the server writes the encoded value into that require
    port's offset in the consumer's `.in` buffer.
-5. RemoteFile sends those destination ranges to the consumers. A client updates
-   its mirror and can notify the application about the affected require port.
+5. RemoteFile sends those destination ranges to consumers whose files are open,
+   coalescing ranges when a routing batch is active. A client updates its mirror
+   and can notify the application about the affected require ports.
 
 No APX port name is carried with the runtime value write. Names and types were
 resolved during definition processing; runtime traffic needs only an address
 and bytes.
+
+## Batched routing updates to existing peers
+
+Connecting or disconnecting a node can change many signals and connection
+counts on nodes that are already online. Sending one write for every affected
+port would create many small packets, each with its own address and length
+headers. The server therefore treats such routing operations as batches.
+
+For each affected node, c-apx records dirty byte ranges separately for:
+
+- `.cin`: require-port connection counts;
+- `.cout`: provide-port connection counts; and
+- `.in`: require-port values.
+
+While a batch is active, changes update the local buffers and accumulate dirty
+ranges instead of immediately enqueuing individual writes. Overlapping or
+adjacent ranges are merged. Nearby ranges may also be combined when sending a
+small unchanged gap is cheaper than an additional write and its framing.
+The current c-apx implementation allows gaps of up to six bytes; this threshold
+is an implementation choice, not a wire-protocol requirement.
+
+When the outermost batch ends, the server sends current buffer contents for
+the coalesced ranges of open files in this order:
+
+1. **`.cin`**
+2. **`.cout`**
+3. **`.in`**
+
+Connection-count changes therefore precede the associated input-data changes
+on that connection. This **flush order differs from publication order**:
+publication is `.cout`, `.cin`, `.in`; batch flushing is `.cin`, `.cout`, `.in`.
+There is no cross-connection atomic transaction.
+
+Closed files need no delta writes: their next open receives a full snapshot of
+the updated buffer. This is how the joining node avoids initialization deltas
+while already-open peers receive coalesced updates.
+
+Batching is bounded by the routing operation, not a timer-based delay applied
+to every signal update. Ordinary sampled port data represents current memory
+state; intermediate values overwritten within a batch need not become separate
+notifications. This does not permit coalescing or dropping queued signal events
+or RemoteFile `FileStream` blocks.
 
 ## Per-file state
 
@@ -238,9 +289,9 @@ for any one direction is:
 ```
 
 The exact transition that marks a locally owned file synchronized is an
-implementation detail, but the distinction between waiting for publication,
-waiting for an open request, and waiting for initial data is useful when
-diagnosing a stalled session.
+implementation detail, but the distinction between waiting for local readiness,
+waiting for publication, waiting for an open request, and waiting for initial
+data is useful when diagnosing a stalled session.
 
 ## Disconnect and reconnect
 
@@ -248,6 +299,11 @@ When a connection closes, the server removes that connection's nodes from its
 signature map and disconnects their port connectors. Remaining nodes stay
 attached to the server, but they no longer receive values from the departed
 providers or send values to departed requesters.
+
+The server batches the resulting changes on surviving nodes: it updates
+connection counts and any replacement-provider or fallback values in memory,
+then flushes the affected open files in `.cin`, `.cout`, `.in` order. Disconnect
+handling therefore avoids a separate network write for every affected port.
 
 RemoteFile also defines `FileClose` and `FileRevoke` commands for changing file
 availability while a connection exists. Support for every teardown path can

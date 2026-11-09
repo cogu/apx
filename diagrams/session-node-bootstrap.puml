@@ -12,29 +12,30 @@ skinparam activity {
 skinparam ArrowColor #3B4A54
 
 start
-:Client publishes <Node>.apx;
-:Server opens the definition file;
-:Client sends the APX IDL text;
-:Server parses the definition;
-:Create port instances, byte offsets,\nserialization programs, and init data;
-
 fork
+  :Client publishes <Node>.apx;
+  :Server opens the definition file;
+  :Client sends the complete definition;
+  :Server validates and parses the definition;
+  :Create port instances, byte offsets,\nserialization programs, and local buffers;
+fork again
   if (Node has provide ports?) then (yes)
     :Client publishes <Node>.out;
-    :Server opens it;
-    :Client sends the initial\nprovide-data snapshot;
-    :Server makes provide ports\navailable for matching;
-  else (no)
-  endif
-fork again
-  if (Node has require ports?) then (yes)
-    :Server publishes <Node>.in;
-    :Client opens it;
-    :Server connects matching ports and\nbuilds the current require-data snapshot;
-    :Server sends that snapshot;
   else (no)
   endif
 end fork
+
+if (Node has provide ports?) then (yes)
+  :Server opens <Node>.out;
+  :Client sends the complete initial\nprovide-data snapshot;
+else (no)
+endif
+
+:Resolve provide and require connections;
+:Populate local .cout, .cin, and .in buffers;\nBatch updates to already-open peer files;
+:Server publishes eligible files in order:\n.cout, then .cin, then .in;
+:Client requests count files before .in;
+:Server sends a populated snapshot\nfor each opened file;
 
 :Subsequent writes carry changed ranges;
 stop

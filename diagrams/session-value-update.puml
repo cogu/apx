@@ -23,6 +23,7 @@ rectangle "Producer client" as producer {
 rectangle "APX server" as server {
   database "Mirrored Producer.out" as mirror
   rectangle "Byte-to-port lookup\n+ connector table" as route
+  database "Destination input buffers\n+ optional dirty-range batching" as destinations
 }
 
 rectangle "Consumers" as consumers {
@@ -42,8 +43,9 @@ rectangle "Consumers" as consumers {
 write --> out : 1. serialize
 out -right-> mirror : 2. delta write
 mirror --> route : 3. port lookup
-route -right-> consumer1in : 4a. write at offset 4
-route -right-> consumer2in : 4b. write at offset 0
-consumer1in --> callback1 : 5a. notify
-consumer2in --> callback2 : 5b. notify
+route --> destinations : 4. update require-port bytes
+destinations -right-> consumer1in : 5a. send range at offset 4
+destinations -right-> consumer2in : 5b. send range at offset 0
+consumer1in --> callback1 : 6a. notify
+consumer2in --> callback2 : 6b. notify
 @enduml

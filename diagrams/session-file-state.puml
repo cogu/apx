@@ -11,7 +11,8 @@ skinparam ArrowColor #3B4A54
 
 [*] --> Initial
 Initial --> WaitingForPublication : peer owns the file
-Initial --> WaitingForOpen : local endpoint owns the file
+Initial --> WaitingForReadiness : local endpoint creates the buffer
+WaitingForReadiness --> WaitingForOpen : populate initial state / publish file
 WaitingForPublication --> WaitingForData : receive FileInfo / send FileOpen
 WaitingForOpen --> Synchronized : receive FileOpen / send snapshot
 WaitingForData --> Synchronized : receive initial snapshot
@@ -19,6 +20,7 @@ Synchronized --> Synchronized : receive or send delta writes
 Synchronized --> Revoked : FileRevoke
 Synchronized --> Disconnected : transport closes
 WaitingForPublication --> Disconnected
+WaitingForReadiness --> Disconnected
 WaitingForOpen --> Disconnected
 WaitingForData --> Disconnected
 Revoked --> [*]

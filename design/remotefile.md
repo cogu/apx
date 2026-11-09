@@ -18,7 +18,9 @@ Most distributed systems rely on either remote procedure calls (RPC) or message 
 RemoteFile takes a different approach: **continuous memory synchronization**. Each endpoint treats the connection as a shared, virtual memory space. When a node updates a signal:
 
 1. The new value is written to a deterministic offset in the local memory map.
-2. A delta write message containing only the modified byte range is sent over the wire.
+2. Delta writes propagate the modified bytes over the wire. An implementation may
+   combine ranges during a routing operation, including small unchanged gaps,
+   instead of sending a separate message for every modified port.
 3. The receiving endpoint writes those bytes directly into its mirrored memory map at the same offset.
 
 This makes communication inherently asynchronous, bidirectional, and lightweight.
@@ -88,8 +90,23 @@ The synchronization lifecycle consists of four main phases:
 
 1. **File Announcement**: The publishing endpoint sends a file announcement command to the remote peer's Control Area, declaring the file name, size, start address, and checksum.
 2. **File Open**: The receiving endpoint evaluates whether it needs the file and has sufficient memory to host it. If accepted, it issues a file open command to the Control Area.
-3. **Initial Synchronization**: Once opened, the publisher transmits the complete initial contents of the file in a single write.
-4. **Delta Updates**: For the remainder of the session, whenever local file data changes, the publisher issues small write operations targeting only the modified byte ranges.
+3. **Initial Synchronization**: Once opened, the publisher transmits the complete
+   initial contents of the file in one logical write. Large writes may be
+   fragmented into several transport messages.
+4. **Delta Updates**: For the remainder of the session, local file changes are
+   propagated as byte-range writes. Bounded routing operations may batch and
+   coalesce updates while preserving the resulting memory state and the
+   application's ordering dependencies.
+
+Creating a buffer does not require announcing it immediately. For APX node
+initialization, the server prepares `.cout`, `.cin`, and `.in` before publishing
+them, so opening these files delivers populated snapshots rather than triggering
+a stream of per-port initialization deltas.
+
+The distinction is between synchronizing memory state and recording every
+intermediate write. Coalescing applies to ordinary sampled state, not queued
+events or `FileStream` block delivery. See [APX Session](session.md) for the
+publication dependencies and the ordering of batched routing updates.
 
 :::{image} ../images/remote_file_update_light.svg
 :alt: RemoteFile Synchronization Lifecycle
