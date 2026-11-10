@@ -107,7 +107,7 @@ Offset 1: 0xFF
 - **Unit Size**: 1 byte per element.
 - **Usage**: Used for raw binary blobs, payload buffers, or cryptographic digests.
 - **Fixed Byte Array (`BYTE[N]`)**: Exactly `N` bytes are copied directly into the buffer. The in-memory payload length must match `N` exactly.
-- **Dynamic Byte Array (`BYTE[<=N]`)**: Prefixed by a dynamic length header (`1`, `2`, or `4` bytes), followed by `K <= N` active bytes. Unused allocated capacity (`N - K`) is handled via slot padding (see [The Padding Mechanism for Memory-Mapped Predictability](#the-padding-mechanism-for-memory-mapped-predictability)).
+- **Dynamic Byte Array (Maximum Length `N` Bytes)**: Prefixed by a dynamic length header (`1`, `2`, or `4` bytes), followed by `K <= N` active bytes. Unused allocated capacity (`N - K`) is handled via slot padding (see [The Padding Mechanism for Memory-Mapped Predictability](#the-padding-mechanism-for-memory-mapped-predictability)).
 
 ---
 
@@ -136,8 +136,8 @@ Offset 5: 0x00 (null padding)
 Total size: 6 bytes
 ```
 
-**Dynamic Strings (`CHAR[<=N]`, `CHAR8[<=N]`):**
-Dynamic strings are variable-length character sequences with a declared maximum capacity `N`:
+**Dynamic Strings (Maximum Capacity `N` Bytes):**
+Dynamic `CHAR` and `CHAR8` strings are variable-length character sequences with a declared maximum capacity of `N` bytes:
 - **Length Prefix**: `1`, `2`, or `4` bytes indicating the actual string length `K` (`K <= N`).
 - **Payload**: Exactly `K` character bytes (no null-terminator is required in the packed payload).
 - **Slot Padding**: The buffer pointer is padded out to `N` when moving to subsequent fields.
@@ -156,9 +156,9 @@ A record is a composite data structure containing an ordered sequence of named f
 - A record field may itself be a child record.
 - The child record's fields are serialized inline in sequence.
 
-**Arrays of Records (`RECORD[N]` and `RECORD[<=N]`):**
+**Arrays of Records:**
 - **Fixed Array of Records (`RECORD[N]`)**: All `N` record instances are serialized consecutively. Each record instance occupies its full static maximum record size.
-- **Dynamic Array of Records (`RECORD[<=N]`)**: Prefixed by the array length integer ($K \le N$), followed by $K$ serialized record instances.
+- **Dynamic Array of Records (Maximum Length `N`)**: Prefixed by the array length integer ($K \le N$), followed by $K$ serialized record instances.
 
 > **Note**: When each record element contains dynamic fields, each record element is padded to its maximum static record size before the next record element begins (see [Concrete Byte Layout Examples](#concrete-byte-layout-examples)).
 
@@ -216,7 +216,7 @@ Whenever a dynamic array (or dynamic string/record element) is encountered durin
 
 ```yaml
 # Record with a dynamic string (max 8 chars) and a uint32 status code
-{"Name"a[<=8]"Status"L}
+{"Name"a[8*]"Status"L}
 ```
 
 - Max capacity of `"Name"`: 1 byte (length prefix for $N \le 255$) + 8 bytes = 9 bytes.
@@ -248,7 +248,7 @@ Because `prepare_for_buffer_write()` jumps from offset 3 to offset 9 before writ
 
 ```yaml
 # Array of 2 records, each with a dynamic string (max 4 chars) and a uint8 id
-{"Label"a[<=4]"Id"C}[2]
+{"Label"a[4*]"Id"C}[2]
 ```
 
 - Each record maximum size: $(1 \text{ byte len} + 4 \text{ bytes payload}) + 1 \text{ byte Id} = 6 \text{ bytes}$.
@@ -288,8 +288,8 @@ Every record instance occupies exactly 6 bytes. `array_next()` advances across p
 | **Scalar Primitives** (`UINT8`..`INT64`, `BOOL`) | None | 0 bytes | N/A | Fixed width (1, 2, 4, 8 bytes) |
 | **Fixed Array** (`T[N]`) | None | 0 bytes | N/A | Fixed width ($N \times \text{elem\_size}$) |
 | **Fixed String** (`CHAR[N]` / `CHAR8[N]`) | None | 0 bytes | Null-padded (`0x00`) in place | Fixed width ($N$ bytes) |
-| **Dynamic Array** (`T[<=N]`) | 1, 2, or 4 bytes | 0 bytes | Slot padding via `padded_next` | Deterministic slot ($\text{header} + N \times \text{elem\_size}$) |
-| **Dynamic String** (`CHAR[<=N]`) | 1, 2, or 4 bytes | 0 bytes | Slot padding via `padded_next` | Deterministic slot ($\text{header} + N$ bytes) |
+| **Dynamic Array** (maximum `N` elements) | 1, 2, or 4 bytes | 0 bytes | Slot padding via `padded_next` | Deterministic slot ($\text{header} + N \times \text{elem\_size}$) |
+| **Dynamic String** (maximum capacity `N` bytes) | 1, 2, or 4 bytes | 0 bytes | Slot padding via `padded_next` | Deterministic slot ($\text{header} + N$ bytes) |
 | **Record / Struct** | None | 0 bytes | Embedded dynamic fields padded via `padded_next` | Fixed record size (sum of max field sizes) |
 | **Array of Records** (`RECORD[N]`) | None | 0 bytes | Dynamic fields inside records padded | Fixed array size ($N \times \text{MaxRecordSize}$) |
 | **Queued Port** | 1, 2, or 4 bytes | 0 bytes | Tail elements unused in queue buffer | Deterministic port size ($\text{header} + N_{\text{queue}} \times \text{elem\_size}$) |
