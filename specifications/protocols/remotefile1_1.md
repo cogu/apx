@@ -112,8 +112,15 @@ Connection-Type: Monitor
 | Attribute | Format | Description |
 |:---|:---|:---|
 | `Message-Size` | `16` or `32` | Declares the NumHeader framing variant used for all subsequent messages from the client (default `32`). |
-| `NumHeader-Format` | `16` or `32` | Legacy alias for `Message-Size` used in RemoteFile v1.0. |
+| `NumHeader-Format` | `16` or `32` | Accepted alias for `Message-Size` in RemoteFile v1.1, retained for compatibility with the legacy greeting attribute. |
 | `Connection-Type` | `Default`, `Monitor`, or `Event` | Declares the connection role and subscription scope. Default is `Default`. |
+
+A RemoteFile v1.1 server MUST accept either `Message-Size` or
+`NumHeader-Format` to select the same framing variant. Clients need send only
+one of these equivalent attributes. Both accept `16` or `32`; omitting the
+attribute selects `32`. Accepting the legacy attribute name does not change
+the negotiated protocol version: an `RMFP/1.1` greeting still receives
+`RMF_CMD_ACCEPT_HEADER`, not the v1.0 `RMF_CMD_ACK`.
 
 **Connection Types:**
 - `Default`: Standard node client that publishes and receives APX virtual files.
