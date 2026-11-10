@@ -341,6 +341,8 @@ Total size: $8 + 	ext{strlen(NodeName)} + 1$ bytes (minimum **9 bytes**).
 | `10` | `APX_UNSUPPORTED_ERROR` | Command or feature unsupported by peer |
 | `21` | `APX_NODE_ALREADY_EXISTS_ERROR` | Node definition already registered |
 | `24` | `APX_FILE_ALREADY_EXISTS_ERROR` | File already mapped at requested address |
+| `32` | `APX_FILE_TOO_LARGE_ERROR` | File exceeds an implementation-defined size limit |
+| `44` | `APX_INVALID_MSG_ERROR` | Malformed or incomplete command structure |
 | `49` | `APX_FILE_NOT_FOUND_ERROR` | Referenced file not found |
 | `65` | `APX_INVALID_HEADER_ERROR` | Malformed or unsupported protocol greeting |
 | `79` | `APX_SIGNATURE_MISSING_ERROR` | Node definition requires signature but none provided |
@@ -444,10 +446,42 @@ The fixed header size is **88 bytes**. The total command size is `88 + strlen(Fi
 * When an unsigned definition with `DigestType = 2` is transferred, it MUST pass SHA-256 verification over the decoded bytes before acceptance. A validated cache entry may instead supply the definition without transfer, as specified below. A digest or Adler-32 checksum is not authentication.
 * A signed publication MUST pass ECDSA-P256/SHA-256 verification over the decoded bytes against trusted keys before acceptance. A receiver requiring signed nodes MUST reject unsigned compressed publication with `APX_SIGNATURE_MISSING_ERROR`, just as it rejects unsigned uncompressed publication.
 * Do not parse, register, or route a node until the applicable transfer-validation or cache-hit requirements below are satisfied. Cache identities refer to uncompressed content; compression does not introduce a signed-transfer verification bypass.
-* Report unsupported compression/digest/signature types with `APX_UNSUPPORTED_ERROR`; invalid command fields, address ranges, or size limits with `APX_INVALID_ARGUMENT_ERROR`; malformed streams, transfer-length errors, or digest mismatches with `APX_PARSE_ERROR`; and invalid signatures with `APX_SIGNATURE_VERIFICATION_ERROR`. Use NACK when the connection remains usable and normal local diagnostics otherwise. A missing signature is reported with `APX_SIGNATURE_MISSING_ERROR`.
+* Preserve the distinction between an unsupported algorithm, an invalid
+  publication, and corrupt transferred data. Use the error categories defined
+  below rather than reporting every decoding failure as a malformed message.
 * Encoding and signing choices are independent of codec library and compression level. Generated embedded clients may contain only the selected representation and require no runtime codec.
 * Compression-capable peers must be selected by deployment configuration or generation-time knowledge. An RMFP 1.1 greeting alone does not prove that an older development implementation supports these additions. No capability negotiation or automatic fallback is specified here.
 * For v1.0/v0.2.8 compatibility, use the legacy greeting, unsigned `RMF_CMD_FILE_INFO` publication (also named `RMF_CMD_PUBLISH_FILE_MSG` in c-apx), and plain definition bytes. Do not assume legacy peers return a structured NACK for unknown commands, and never send compressed data under an uncompressed announcement.
+
+#### Compressed Definition Error Reporting
+
+| Failure | Error Code |
+|:---|:---|
+| Unsupported compression, digest, or signature algorithm in an otherwise valid publication | `APX_UNSUPPORTED_ERROR` (`10`) |
+| Malformed or truncated publication command structure, such as a missing file-name terminator | `APX_INVALID_MSG_ERROR` (`44`) |
+| Invalid command fields, such as a nonzero reserved field, invalid address range, or zero or protocol-out-of-range size | `APX_INVALID_ARGUMENT_ERROR` (`1`) |
+| Otherwise valid `CompressedSize` or `UncompressedSize` exceeds an implementation-defined per-definition size limit | `APX_FILE_TOO_LARGE_ERROR` (`32`) |
+| Malformed compressed stream, transfer-length error, or digest mismatch | `APX_PARSE_ERROR` (`3`) |
+| Missing signature when a signature is required | `APX_SIGNATURE_MISSING_ERROR` (`79`) |
+| Signature verification fails | `APX_SIGNATURE_VERIFICATION_ERROR` (`80`) |
+
+The distinction between invalid sizes and implementation limits is deliberate:
+a zero size or a range outside the protocol's address space is an invalid
+argument; a size that is valid on the wire but exceeds the receiver's configured
+per-definition limit is a file-too-large error.
+
+When command boundaries remain intact and the connection remains usable, the
+receiver MUST report a rejection with `RMF_CMD_NACK` and the applicable error
+code. In particular, a structurally valid publication using an unsupported
+algorithm MUST receive `APX_UNSUPPORTED_ERROR`; the receiver MUST NOT close
+the connection solely because that algorithm is unsupported. Reject that
+publication without requesting its payload or accepting its node, and allow
+subsequent commands to be processed normally.
+
+If framing is lost or the connection is otherwise unusable, report the error
+through normal local diagnostics and close the connection as necessary instead
+of attempting to continue. Rejecting a publication does not introduce automatic
+algorithm negotiation or fallback.
 
 #### FileType Values
 
@@ -518,11 +552,6 @@ Unmaps a previously announced file. If the remote peer currently has the file op
 | 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of the file to revoke |
 
 Total size: **8 bytes**.
-
-**Multiple FileInfo Packing:**
-Multiple `FileInfo` or `PublishSignedFile` structures may be packed into a single 1024-byte control write. When packing multiple structures:
-- Only the **first structure** includes the 4-byte `CmdType` field.
-- Subsequent structures begin immediately after the null terminator of the preceding file name (starting directly with `StartAddress`).
 
 ---
 

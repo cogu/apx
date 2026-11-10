@@ -281,11 +281,6 @@ The total size of the `FileInfo` structure is $48 + \text{strlen(FileName)} + 1$
 | 1 | `SHA-1` | 20-byte SHA-1 hash |
 | 2 | `SHA-256` | 32-byte SHA-256 hash |
 
-**Multiple FileInfo Packing:**
-Multiple `FileInfo` structures may be packed into a single 1024-byte control write. When packing multiple structures:
-- Only the **first structure** includes the 4-byte `CmdType` field.
-- Subsequent structures begin immediately after the null terminator of the preceding file name (starting directly with `StartAddress`).
-
 **FileRevoke Command (`RMF_CMD_REVOKE_FILE`):**
 Unmaps a previously announced file. If the remote peer currently has the file open, it is automatically closed.
 

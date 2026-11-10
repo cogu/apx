@@ -111,6 +111,10 @@ APX uses single-letter primitive type codes. In general, lowercase letters repre
 | **U** | uint64 | 64 | 0 | (2^64)-1 |
 | **a** | unsigned char | 8 | 0 | 255 |
 
+**Note**: The 64-bit type codes `u` and `U` was never implemented by the server or any of its clients.
+
+In addition, APX IDL v1.3 now uses type codes  `q` and `Q` to represent 64-bit types.
+
 ### Array Types
 
 Any primitive type code can be followed by `[n]`, where `n` is the number of array elements.

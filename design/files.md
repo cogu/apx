@@ -48,14 +48,17 @@ connected consumers is determined and maintained by the server's routing engine.
 
 ## Virtual Memory Map & Addressing
 
-RemoteFile allocates virtual files within a 1GB (30-bit) address space. To minimize
-framing overhead, APX partitions this address space into functional regions:
+RemoteFile allocates virtual files within a 1GB (30-bit) address space.
+The diagram below shows c-apx’s default allocation regions. With the exception of the control area,
+these regions are implementation choices and not protocol requirements.
+Placing frequently updated .out and .in data near address zero is recommended to benefit from the
+two-byte address headers available below 0x4000.
 
 ```text
 +------------------------------------+ 0x3FFFFFFF (1GB)
 | Control Area (1 KB)                | 0x3FFFFC00
 +------------------------------------+
-| User / Extension Area              | 0x0C000000
+| User / Extension Area              | 0x20000000 (512 MB)
 +------------------------------------+
 | Port Count Area (.cout, .cin)      | 0x08000000 (128 MB)
 +------------------------------------+

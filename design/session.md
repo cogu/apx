@@ -56,8 +56,8 @@ Before files can be synchronized, the peers agree on RemoteFile framing.
 1. The transport connection is established. TCP and UNIX domain sockets are
    examples; RemoteFile itself is transport-independent.
 2. The client sends the text greeting as its first framed message. A typical
-   greeting is `RMFP/1.0\nNumHeader: 32\n\n`.
-3. The server validates the greeting and replies with a binary `RMF_CMD_ACK`
+   greeting is `RMFP/1.1\nMessage-Size: 32\n\n`.
+3. The server validates the greeting and replies with a binary `RMF_CMD_ACCEPT_HEADER`
    in the RemoteFile control area.
 4. After accepting the acknowledgement, the client enables file publication
    and normal RemoteFile command processing.

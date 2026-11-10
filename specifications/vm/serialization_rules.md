@@ -42,7 +42,7 @@ This section specifies how individual data types are serialized and deserialized
 | `BYTE` | 9 | 1 | `uint8_t` / `bytes` | Raw byte / blob code unit |
 | `RECORD` | 10 | Variable | `struct` / `dict` / `hash` | Composite record structure |
 | `RESERVED` | 11 | N/A | N/A | Reserved for future use |
-| `CHAR` | 12 | 1 | `char` / `str` | ASCII character code unit |
+| `CHAR` | 12 | 1 | `char` / `str` | Latin-1 character code unit |
 | `CHAR8` | 13 | 1 | `char8_t` / `str` | UTF-8 character code unit |
 | `CHAR16` | 14 | 2 | `char16_t` / `str` | UTF-16 character code unit (little-endian) |
 | `CHAR32` | 15 | 4 | `char32_t` / `str` | UTF-32 character code unit (little-endian) |
@@ -115,14 +115,14 @@ Offset 1: 0xFF
 
 **Scalar Characters (Array Length = 0):**
 When encoded as a scalar character, a single character code unit is packed directly:
-- `CHAR` / `CHAR8`: 1 byte (ASCII / UTF-8 code unit).
+- `CHAR` / `CHAR8`: 1 byte (Latin-1 / UTF-8 code unit).
 - `CHAR16`: 2 bytes (UTF-16 code unit, little-endian).
 - `CHAR32`: 4 bytes (UTF-32 code unit, little-endian).
 
 **Fixed-Length Strings (`CHAR[N]`, `CHAR8[N]`):**
 Fixed-length strings allocate exactly `N * element_size` bytes in the buffer:
 - **No dynamic length prefix** is written.
-- If the in-memory string length `L <= N`, the serializer writes the string bytes and **zero-fills (null-pads)** the remaining `N - L` bytes up to the full buffer capacity `N`.
+- If the in-memory string length `L <= N`, the serializer writes the string bytes and **zero-fills (null-pads)** the remaining `N - L` code units up to the full buffer capacity `N`.
 - If `L > N`, a buffer error (`APX_BUFFER_BOUNDARY_ERROR` / `VALUE_LENGTH_ERROR`) is raised.
 
 **Example: Fixed String `CHAR[6]` with value `"Hi"`:**
@@ -136,11 +136,11 @@ Offset 5: 0x00 (null padding)
 Total size: 6 bytes
 ```
 
-**Dynamic Strings (Maximum Capacity `N` Bytes):**
-Dynamic `CHAR` and `CHAR8` strings are variable-length character sequences with a declared maximum capacity of `N` bytes:
-- **Length Prefix**: `1`, `2`, or `4` bytes indicating the actual string length `K` (`K <= N`).
-- **Payload**: Exactly `K` character bytes (no null-terminator is required in the packed payload).
-- **Slot Padding**: The buffer pointer is padded out to `N` when moving to subsequent fields.
+**Dynamic Strings (Maximum Capacity `N` code units):**
+Dynamic `CHAR` and `CHAR8` strings are variable-length character sequences with a declared maximum capacity of `N` code units:
+- **Length Prefix**: `1`, `2`, or `4` bytes indicating the number of used code units `K` (`K <= N`) in the string array.
+- **Payload**: Exactly `K` code units (no null-terminator is required in the packed payload).
+- **Slot Padding**: The buffer pointer is padded out to `N` before moving to subsequent fields.
 
 ---
 
@@ -287,9 +287,9 @@ Every record instance occupies exactly 6 bytes. `array_next()` advances across p
 |:---|:---:|:---:|:---|:---|
 | **Scalar Primitives** (`UINT8`..`INT64`, `BOOL`) | None | 0 bytes | N/A | Fixed width (1, 2, 4, 8 bytes) |
 | **Fixed Array** (`T[N]`) | None | 0 bytes | N/A | Fixed width ($N \times \text{elem\_size}$) |
-| **Fixed String** (`CHAR[N]` / `CHAR8[N]`) | None | 0 bytes | Null-padded (`0x00`) in place | Fixed width ($N$ bytes) |
+| **Fixed String** (`CHAR[N]` / `CHAR8[N]`) | None | 0 bytes | Null-padded (`0x00`) in place | Fixed width ($N$ code units) |
 | **Dynamic Array** (maximum `N` elements) | 1, 2, or 4 bytes | 0 bytes | Slot padding via `padded_next` | Deterministic slot ($\text{header} + N \times \text{elem\_size}$) |
-| **Dynamic String** (maximum capacity `N` bytes) | 1, 2, or 4 bytes | 0 bytes | Slot padding via `padded_next` | Deterministic slot ($\text{header} + N$ bytes) |
+| **Dynamic String** (maximum capacity `N` code units) | 1, 2, or 4 bytes | 0 bytes | Slot padding via `padded_next` | Deterministic slot ($\text{header} + N$ code units) |
 | **Record / Struct** | None | 0 bytes | Embedded dynamic fields padded via `padded_next` | Fixed record size (sum of max field sizes) |
 | **Array of Records** (`RECORD[N]`) | None | 0 bytes | Dynamic fields inside records padded | Fixed array size ($N \times \text{MaxRecordSize}$) |
 | **Queued Port** | 1, 2, or 4 bytes | 0 bytes | Tail elements unused in queue buffer | Deterministic port size ($\text{header} + N_{\text{queue}} \times \text{elem\_size}$) |
