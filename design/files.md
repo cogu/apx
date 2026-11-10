@@ -32,13 +32,13 @@ Every file has a single **authoritative owner** (the writer) and a **mirror subs
 (the reader). RemoteFile ensures that changes made by the authoritative owner are
 streamed to the subscriber's mirror.
 
-| File | File Type | Authoritative Owner (Writer) | Subscriber (Reader) | Wire Encoding | Primary Purpose |
+| File | APX File Type | Authoritative Owner (Writer) | Subscriber (Reader) | Wire Encoding | Primary Purpose |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `<Node>.apx` | Definition (`1`) | Node (Client) | APX Server | UTF-8 / ASCII text | Interface definition (types, ports) |
-| `<Node>.out` | Provide data (`2`) | Node (Client) | APX Server | Packed binary | Serialized provide port signal values |
-| `<Node>.in` | Require data (`3`) | APX Server | Node (Client) | Packed binary | Serialized require port signal values |
-| `<Node>.cout` | Provide port count (`4`) | APX Server | Node (Client) | Array of `uint16_t` LE | Active consumer count per provide port |
-| `<Node>.cin` | Require port count (`5`) | APX Server | Node (Client) | Array of `uint16_t` LE | Active provider status per require port |
+| `<Node>.apx` | Definition | Node (Client) | APX Server | UTF-8 / ASCII text | Interface definition (types, ports) |
+| `<Node>.out` | Provide data | Node (Client) | APX Server | Packed binary | Serialized provide port signal values |
+| `<Node>.in` | Require data | APX Server | Node (Client) | Packed binary | Serialized require port signal values |
+| `<Node>.cout` | Provide port count | APX Server | Node (Client) | Array of `uint16_t` LE | Active consumer count per provide port |
+| `<Node>.cin` | Require port count | APX Server | Node (Client) | Array of `uint16_t` LE | Active provider status per require port |
 
 ```{tip}
 Notice that the APX server owns and writes both `<Node>.cout` and `<Node>.cin`. Even
