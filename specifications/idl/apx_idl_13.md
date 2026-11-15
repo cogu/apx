@@ -133,7 +133,7 @@ A line must not end with a colon `:` without an attribute definition following i
 
 A *node declaration* begins a new APX *node*. All subsequent lines belong to that node.
 Each node has a name (string literal enclosed in quotes) that must be unique within the APX client connection.
-There can only be a single node declaration per definition file, and the node name must match the file name without the `.apx` extension.
+There can only be a single node declaration per definition file.
 
 A node declaration does not have an attribute section.
 

@@ -344,6 +344,7 @@ Total size: $8 + 	ext{strlen(NodeName)} + 1$ bytes (minimum **9 bytes**).
 | `32` | `APX_FILE_TOO_LARGE_ERROR` | File exceeds an implementation-defined size limit |
 | `44` | `APX_INVALID_MSG_ERROR` | Malformed or incomplete command structure |
 | `49` | `APX_FILE_NOT_FOUND_ERROR` | Referenced file not found |
+| `61` | `APX_INVALID_NAME_ERROR` | Announced file name does not match declared node name or is invalid |
 | `65` | `APX_INVALID_HEADER_ERROR` | Malformed or unsupported protocol greeting |
 | `79` | `APX_SIGNATURE_MISSING_ERROR` | Node definition requires signature but none provided |
 | `80` | `APX_SIGNATURE_VERIFICATION_ERROR` | Cryptographic signature verification failed |
@@ -366,6 +367,8 @@ Announces that an unauthenticated, uncompressed file is available and mapped at 
 | 48 | `FileName` | String | ASCII | Null-terminated file name string |
 
 The total size of the `FileInfo` structure is $48 + 	ext{strlen(FileName)} + 1$ bytes. Because the maximum command length is 1024 bytes, the maximum file name length is **975 bytes** (excluding the null terminator).
+
+When publishing an APX node definition file over RemoteFile (via `RMF_CMD_FILE_INFO`, `RMF_CMD_PUBLISH_SIGNED_FILE`, `RMF_CMD_PUBLISH_COMPRESSED_FILE`, or `RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE`), the wire `FileName` MUST be `<NodeName>.apx`, where `<NodeName>` matches the node name declared inside the definition (`N"<NodeName>"`). A receiver MUST reject a mismatch before compiling or routing the node, sending `RMF_CMD_NACK` with `ErrorCode = 61` (`APX_INVALID_NAME_ERROR`) when structured NACK is negotiated.
 
 **PublishSignedFile Command (`RMF_CMD_PUBLISH_SIGNED_FILE`):**
 Announces a cryptographically signed, uncompressed file. This command is typically used to publish `.apx` node definition files accompanied by an asymmetric digital signature for definition-content authentication.

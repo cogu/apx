@@ -265,6 +265,8 @@ Announces that a file is available and mapped at a specific start address in the
 
 The total size of the `FileInfo` structure is $48 + \text{strlen(FileName)} + 1$ bytes. Because the maximum command length is 1024 bytes, the maximum file name length is **975 bytes** (excluding the null terminator).
 
+When publishing an APX node definition file over RemoteFile, the wire `FileName` MUST be `<NodeName>.apx`, where `<NodeName>` matches the node name declared inside the definition (`N"<NodeName>"`). A server MUST reject a definition whose declared node name does not match the announced wire file name.
+
 **FileType Values:**
 
 | Value | Identifier | Description |
