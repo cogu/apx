@@ -371,7 +371,7 @@ The total size of the `FileInfo` structure is $48 + 	ext{strlen(FileName)} + 1$ 
 When publishing an APX node definition file over RemoteFile (via `RMF_CMD_FILE_INFO`, `RMF_CMD_PUBLISH_SIGNED_FILE`, `RMF_CMD_PUBLISH_COMPRESSED_FILE`, or `RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE`), the wire `FileName` MUST be `<NodeName>.apx`, where `<NodeName>` matches the node name declared inside the definition (`N"<NodeName>"`). A receiver MUST reject a mismatch before compiling or routing the node, sending `RMF_CMD_NACK` with `ErrorCode = 61` (`APX_INVALID_NAME_ERROR`) when structured NACK is negotiated.
 
 **PublishSignedFile Command (`RMF_CMD_PUBLISH_SIGNED_FILE`):**
-Announces a cryptographically signed, uncompressed file. This command is typically used to publish `.apx` node definition files accompanied by an asymmetric digital signature for definition-content authentication.
+Announces a cryptographically signed, uncompressed file. This command is typically used to publish `.apx` node definition files accompanied by a SHA-256 digest and an asymmetric digital signature over that digest for pre-transfer authentication and cache lookup.
 
 | Offset | Field | Type | Value Range | Description |
 |:---:|:---|:---:|:---|:---|
@@ -380,10 +380,11 @@ Announces a cryptographically signed, uncompressed file. This command is typical
 | 8 | `FileSize` | `U32LE` | `0` – `0x3FFFFC00` | Maximum size of the file in bytes |
 | 12 | `FileType` | `U16LE` | `0` – `5` | File type descriptor (see below) |
 | 14 | `SignatureType` | `U16LE` | `0` – `1` | Cryptographic signature type (see below) |
-| 16 | `SignatureData` | `UINT8[64]` | Bytes | 64-byte cryptographic signature payload |
-| 80 | `FileName` | String | ASCII | Null-terminated file name string |
+| 16 | `DigestData` | `UINT8[32]` | Bytes | 32-byte SHA-256 digest of the file bytes (all zero when `SignatureType = 0`) |
+| 48 | `SignatureData` | `UINT8[64]` | Bytes | 64-byte cryptographic signature over `DigestData` |
+| 112 | `FileName` | String | ASCII | Null-terminated file name string |
 
-The fixed header size of `PublishSignedFile` is **80 bytes**. The total structure size is $80 + 	ext{strlen(FileName)} + 1$ bytes. The maximum file name length is **943 bytes** (excluding the null terminator).
+The fixed header size of `PublishSignedFile` is **112 bytes**. The total structure size is `112 + strlen(FileName) + 1` bytes. The maximum file name length is **911 bytes** (excluding the null terminator).
 
 #### Compressed Definition Transfer
 
@@ -408,7 +409,7 @@ Announces an unsigned compressed definition, optionally accompanied by a SHA-256
 The fixed header size is **56 bytes**. The total command size is `56 + strlen(FileName) + 1`; the maximum file name length is **967 bytes**, excluding the terminator.
 
 **PublishSignedCompressedFile Command (`RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE`):**
-Announces a signed compressed definition. As for uncompressed signed publication, the signature uses ECDSA-P256 with SHA-256 over the exact uncompressed definition bytes, not the compressed stream.
+Announces a signed compressed definition. As for uncompressed signed publication, `DigestData` is the SHA-256 digest of the exact uncompressed definition bytes (not the compressed stream), and `SignatureData` is the ECDSA-P256 signature over `DigestData`.
 
 | Offset | Field | Type | Value Range | Description |
 |:---:|:---|:---:|:---|:---|
@@ -420,10 +421,11 @@ Announces a signed compressed definition. As for uncompressed signed publication
 | 18 | `CompressionType` | `U16LE` | `1` | `ZlibDeflate` |
 | 20 | `SignatureType` | `U16LE` | `1` | `ECDSA_P256` |
 | 22 | `Reserved` | `U16LE` | `0` | MUST be zero |
-| 24 | `SignatureData` | `UINT8[64]` | Bytes | 64-byte signature over uncompressed data |
-| 88 | `FileName` | String | ASCII | Null-terminated file name string |
+| 24 | `DigestData` | `UINT8[32]` | Bytes | 32-byte SHA-256 digest of the uncompressed data |
+| 56 | `SignatureData` | `UINT8[64]` | Bytes | 64-byte signature over `DigestData` |
+| 120 | `FileName` | String | ASCII | Null-terminated file name string |
 
-The fixed header size is **88 bytes**. The total command size is `88 + strlen(FileName) + 1`; the maximum file name length is **935 bytes**, excluding the terminator. All integer fields are encoded explicitly in little-endian order; native struct padding is not part of either command.
+The fixed header size is **120 bytes**. The total command size is `120 + strlen(FileName) + 1`; the maximum file name length is **903 bytes**, excluding the terminator. All integer fields are encoded explicitly in little-endian order; native struct padding is not part of either command.
 
 **CompressionType Values:**
 
@@ -438,7 +440,7 @@ The fixed header size is **88 bytes**. The total command size is `88 + strlen(Fi
 
 * The mapped RemoteFile range is `[StartAddress, StartAddress + CompressedSize)`. Validate `CompressedSize <= 0x3FFFFC00 - StartAddress` before mapping or allocating; `UncompressedSize` does not determine the wire address range.
 * Use the original `.apx` name. The encoded bytes represent the transfer, while the decoded bytes represent the logical APX definition.
-* When a transfer is required, open the encoded file with the ordinary `RMF_CMD_FILE_OPEN`. An unsigned cache hit may avoid opening the file, as specified below. Each open starts at offset zero and transfers the full immutable stream using sequential, non-overlapping data writes. Writes with gaps, overlap, or bytes outside the declared range are invalid.
+* When a transfer is required, open the encoded file with the ordinary `RMF_CMD_FILE_OPEN`. A validated cache hit (unsigned when permitted, or signed after pre-transfer signature verification) may avoid opening the file, as specified below. Each open starts at offset zero and transfers the full immutable stream using sequential, non-overlapping data writes. Writes with gaps, overlap, or bytes outside the declared range are invalid.
 * Intermediate writes set `MORE_BIT = 1`; the final write sets `MORE_BIT = 0` and MUST end at exactly `CompressedSize`. Reject an early final write, an oversized write, or further data after completion unless a new open has started a fresh transfer.
 * Successful decoding MUST consume exactly `CompressedSize` bytes, reach the end of one valid zlib stream, and produce exactly `UncompressedSize` bytes. Bound output during decoding, not only after it finishes.
 * Sizes, digests, and signatures exclude any C-string terminator added by an implementation. No line-ending normalization or other text transformation is permitted between decoding and integrity verification.
@@ -447,8 +449,8 @@ The fixed header size is **88 bytes**. The total command size is `88 + strlen(Fi
 **Integrity, Errors, and Compatibility:**
 
 * When an unsigned definition with `DigestType = 2` is transferred, it MUST pass SHA-256 verification over the decoded bytes before acceptance. A validated cache entry may instead supply the definition without transfer, as specified below. A digest or Adler-32 checksum is not authentication.
-* A signed publication MUST pass ECDSA-P256/SHA-256 verification over the decoded bytes against trusted keys before acceptance. A receiver requiring signed nodes MUST reject unsigned compressed publication with `APX_SIGNATURE_MISSING_ERROR`, just as it rejects unsigned uncompressed publication.
-* Do not parse, register, or route a node until the applicable transfer-validation or cache-hit requirements below are satisfied. Cache identities refer to uncompressed content; compression does not introduce a signed-transfer verification bypass.
+* A signed publication MUST pass ECDSA-P256 verification of `SignatureData` over `DigestData` against configured trusted public keys before consulting the cache or opening the file. If the definition is transferred on a cache miss, the decoded bytes MUST also satisfy `SHA-256(decoded_bytes) == DigestData`; a mismatch MUST be rejected with `APX_SIGNATURE_VERIFICATION_ERROR` (`80`). A receiver requiring signed nodes MUST reject unsigned compressed publication with `APX_SIGNATURE_MISSING_ERROR`, just as it rejects unsigned uncompressed publication.
+* Do not parse, register, or route a node until the applicable signature-verification, transfer-validation, or cache-hit requirements below are satisfied. Cache identities refer to uncompressed content; compression does not bypass signature verification.
 * Preserve the distinction between an unsupported algorithm, an invalid
   publication, and corrupt transferred data. Use the error categories defined
   below rather than reporting every decoding failure as a malformed message.
@@ -514,37 +516,38 @@ algorithm negotiation or fallback.
 
 #### Definition Cache Interaction
 
-Caching is optional and does not change the publication layouts. All four publication variants can reuse compatible compiled definitions. SHA-256 cache identities, optional advertised digests, and signatures refer to the exact **uncompressed definition bytes**, excluding any local C-string terminator.
+Caching is optional and does not change the publication layouts. All four publication variants can skip definition transfer on a valid cache hit and reuse compatible compiled definitions. SHA-256 cache identities, advertised digests, and signatures refer to the exact **uncompressed definition bytes**, excluding any local C-string terminator.
 
 | Publication | Skip definition transfer on a cache hit? | Reuse a compatible compiled definition? |
 |:---|:---|:---|
 | `RMF_CMD_FILE_INFO` / `PUBLISH_FILE` (3) | Yes, with an advertised SHA-256 matching a valid local cache entry | Yes |
-| `RMF_CMD_PUBLISH_SIGNED_FILE` (21) | No; request the definition and verify its signature | Yes, after verification |
+| `RMF_CMD_PUBLISH_SIGNED_FILE` (21) | Yes, after pre-transfer signature verification against trusted keys and matching a valid local cache entry | Yes |
 | `RMF_CMD_PUBLISH_COMPRESSED_FILE` (22) | Yes, with an advertised SHA-256 matching a valid local cache entry | Yes |
-| `RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE` (23) | No; request, decompress, and verify the definition | Yes, after verification |
+| `RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE` (23) | Yes, after pre-transfer signature verification against trusted keys and matching a valid local cache entry | Yes |
 
 For either unsigned form, check signed-node policy before consulting the cache. If unsigned definitions are permitted and `DigestType = 2`, a receiver MAY use a valid cached text or compiled definition matching the advertised SHA-256, node identity, and logical definition size instead of sending `RMF_CMD_FILE_OPEN`. Validate cached content and compiled-format/compiler/VM compatibility as applicable. A text-only hit still requires parsing and compilation, but neither a text nor compiled hit requires definition transfer or decompression. No definition-transfer buffers or decoder state are needed for this fast path.
 
 If caching is disabled, no usable digest is advertised, or no valid matching entry exists, request the file and validate the transferred definition normally. After transfer, the receiver may compute SHA-256 and reuse a compatible compiled entry even when no digest was advertised.
 
-For either signed form, the receiver MUST request the full definition on every connection and verify the signature against the received uncompressed bytes before using a compiled cache entry. For the compressed form, bounded decompression and stream validation precede signature verification. The resulting SHA-256 can then identify compatible precompiled content and bypass parsing/compilation; a cache hit MUST NOT bypass transfer or verification under this policy.
+For either signed form, the receiver MUST verify `SignatureData` over the advertised `DigestData` against its currently configured trusted public keys **before** consulting the cache, reserving transfer buffers, or sending `RMF_CMD_FILE_OPEN`. If signature verification fails (including when a previously trusted signing key has been revoked), the receiver MUST reject the publication immediately with `APX_SIGNATURE_VERIFICATION_ERROR` (`80`) and MUST NOT serve any cached entry. Only after `SignatureData` verifies over `DigestData` may the receiver look up a valid cached text or compiled definition matching `(node_name, DigestData, logical_size)` and skip `RMF_CMD_FILE_OPEN`. On a cache miss, the receiver MUST request the file, perform bounded decompression if compressed, and verify `SHA-256(uncompressed_bytes) == DigestData` (binding the received payload to the already-verified signature) before compiling or caching.
 
 An unsigned digest, a matching cached definition, or the zlib checksum does not authenticate a client and cannot satisfy a signed-node requirement. A definition signature authenticates content, not client identity, freshness, or possession of a signing key. Invalid transferred content MUST be rejected rather than replaced by a cached success.
 
-Precompression and signing may both happen during embedded code generation or a build step. An APX-ES node may store only the compressed byte array, its lengths, and the signature; it requires neither a runtime codec nor an on-device signing key to publish that definition.
+Precompression and signing may both happen during embedded code generation or a build step. An APX-ES node may store only the compressed byte array, its lengths, the 32-byte SHA-256 digest of the uncompressed definition, and the 64-byte signature; it requires neither a runtime codec nor an on-device signing key to publish that definition.
 
 #### Signed File Verification Flow
 
-When a server is configured with `require-signed-nodes = true`:
+When a server is configured with `require-signed-nodes = true` (or has trusted public keys configured):
 
-1. **Publication**: The client sends `RMF_CMD_PUBLISH_SIGNED_FILE`, or `RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE` for a compressed definition, with `SignatureType = 1` (`ECDSA_P256`) and the 64-byte signature over the exact definition bytes.
-2. **Open Request**: The server maps the remote file and sends `RMF_CMD_FILE_OPEN`.
-3. **Data Transmission**: The client writes the complete plain or compressed definition payload to the remote address, according to its announcement.
-4. **Signature Verification**: Upon receiving the full file (`MORE_BIT = 0`), the server first performs bounded decompression if applicable, then computes SHA-256 over the exact uncompressed definition bytes and verifies the ECDSA signature against its configured trusted public keys.
-5. **Acceptance / Rejection**:
-   - If verified: The server loads a compatible compiled cache entry identified by the verified definition's SHA-256, or parses and compiles the received definition if no usable compiled entry exists, then publishes corresponding `.in` / `.out` / `.cout` / `.cin` files.
-   - If verification fails: The server transmits `RMF_CMD_NACK` with `ErrorCode = 80` (`APX_SIGNATURE_VERIFICATION_ERROR`) and the node's name, discarding the untrusted node.
-   - If an unsigned announcement (`RMF_CMD_FILE_INFO` or `RMF_CMD_PUBLISH_COMPRESSED_FILE`) is received for a node definition: The server rejects the node with `ErrorCode = 79` (`APX_SIGNATURE_MISSING_ERROR`).
+1. **Publication**: The client sends `RMF_CMD_PUBLISH_SIGNED_FILE`, or `RMF_CMD_PUBLISH_SIGNED_COMPRESSED_FILE` for a compressed definition, with `SignatureType = 1` (`ECDSA_P256`), `DigestData` set to the SHA-256 of the exact uncompressed definition bytes, and `SignatureData` set to the 64-byte ECDSA signature over `DigestData`.
+   - If an unsigned announcement (`RMF_CMD_FILE_INFO` or `RMF_CMD_PUBLISH_COMPRESSED_FILE`) is received for a node definition while `require-signed-nodes = true`, the server rejects the node immediately with `RMF_CMD_NACK` (`ErrorCode = 79`, `APX_SIGNATURE_MISSING_ERROR`).
+2. **Pre-Transfer Signature Verification**: The server verifies `ECDSA_Verify(trusted_pubkey, DigestData, SignatureData)` against its configured trusted public keys before reserving transfer buffers, consulting the cache, or sending `RMF_CMD_FILE_OPEN`.
+   - If verification fails: the server transmits `RMF_CMD_NACK` with `ErrorCode = 80` (`APX_SIGNATURE_VERIFICATION_ERROR`) and the node's name, rejecting the untrusted node without opening the file.
+3. **Optional Cache Lookup**: If server caching is enabled, the server looks up `(node_name, DigestData)` and verifies the logical definition size and cached content integrity (`SHA-256(cached_bytes) == DigestData` for text entries, or validated `.apxc` integrity and ABI compatibility for compiled entries).
+   - On a valid cache hit: the server skips `RMF_CMD_FILE_OPEN`, restores or compiles the cached definition, and immediately publishes corresponding `.in` / `.out` / `.cout` / `.cin` files.
+4. **Cache-Miss Transfer & Digest Binding**: If caching is disabled or no valid matching entry exists, the server maps the remote file and sends `RMF_CMD_FILE_OPEN`. The client writes the complete plain or compressed definition payload (`MORE_BIT = 0`). Upon completion, the server performs bounded decompression if applicable, computes SHA-256 over the exact uncompressed definition bytes, and verifies that it equals the already-verified `DigestData`.
+   - If `SHA-256(uncompressed_bytes) != DigestData`: the server transmits `RMF_CMD_NACK` with `ErrorCode = 80` (`APX_SIGNATURE_VERIFICATION_ERROR`) and discards the node.
+5. **Acceptance**: The server parses and compiles the verified definition (or loads a compatible compiled entry), optionally stores the verified definition in the cache, and publishes corresponding `.in` / `.out` / `.cout` / `.cin` files.
 
 **FileRevoke Command (`RMF_CMD_REVOKE_FILE`):**
 Unmaps a previously announced file. If the remote peer currently has the file open, it is automatically closed.
@@ -606,7 +609,7 @@ Echoes back the fields from the corresponding `Ping Request`.
 ### File Open & Close Commands
 
 **FileOpen Command (`RMF_CMD_FILE_OPEN`):**
-Requests to open a remote file announced via any of the four publication commands. For compressed definitions, the requested data is the encoded stream described by `CompressedSize`. An accepted unsigned definition cache hit can make this request unnecessary.
+Requests to open a remote file announced via any of the four publication commands. For compressed definitions, the requested data is the encoded stream described by `CompressedSize`. An accepted unsigned definition cache hit or a signature-verified signed definition cache hit can make this request unnecessary.
 
 | Offset | Field | Type | Value Range | Description |
 |:---:|:---|:---:|:---|:---|
@@ -833,7 +836,7 @@ The following table summarizes the protocol changes between RemoteFile v1.0 and 
 | **Greeting Role Attr** | None | `Connection-Type: Default\|Monitor\|Event` |
 | **Handshake Response** | `RMF_CMD_ACK` (4 bytes) | `RMF_CMD_ACCEPT_HEADER` (8 bytes, includes `ConnectionId`) |
 | **Error Signaling** | Empty `RMF_CMD_NACK` (opcode only) | Structured `RMF_CMD_NACK` with `ErrorCode` and `NodeName` |
-| **Signed File Publication** | Not supported | `RMF_CMD_PUBLISH_SIGNED_FILE` (ECDSA P-256, 64-byte signature) |
+| **Signed File Publication** | Not supported | `RMF_CMD_PUBLISH_SIGNED_FILE` (ECDSA P-256, 32-byte SHA-256 digest + 64-byte signature) |
 | **Compressed Definitions** | Not supported; publish plain text | Unsigned or signed zlib-wrapped DEFLATE publication |
 | **Monitoring / Logging Events** | No dedicated event commands | Independent application event records carried in `FileStream` payloads |
 | **Virtual File Types** | Fixed (`0`), Dynamic (`1`), Stream (`2`) | Fixed (`0`), Dynamic8 (`1`), Dynamic16 (`2`), Dynamic32 (`3`), Device (`4`), Stream (`5`) |
