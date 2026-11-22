@@ -362,7 +362,7 @@ Announces that an unauthenticated, uncompressed file is available and mapped at 
 | 4 | `StartAddress` | `U32LE` | `0` – `0x3FFFFBFF` | Start address of the file |
 | 8 | `FileSize` | `U32LE` | `0` – `0x3FFFFC00` | Maximum size of the file in bytes |
 | 12 | `FileType` | `U16LE` | `0` – `5` | File type descriptor (see below) |
-| 14 | `DigestType` | `U16LE` | `0` – `2` | Checksum algorithm (see below) |
+| 14 | `DigestType` | `U16LE` | `0` or `2` | Checksum algorithm (see below) |
 | 16 | `DigestData` | `UINT8[32]` | Bytes | 32-byte digest payload (zero-padded if unused) |
 | 48 | `FileName` | String | ASCII | Null-terminated file name string |
 
@@ -504,7 +504,7 @@ algorithm negotiation or fallback.
 | Value | Identifier | Description |
 |:---:|:---|:---|
 | `0` | `NoDigest` | No checksum provided |
-| `1` | `SHA-1` | 20-byte SHA-1 hash (padded to 32 bytes) |
+| `1` | *Reserved* | Reserved (retired legacy `SHA-1` identifier from v1.0; MUST NOT be used in v1.1) |
 | `2` | `SHA-256` | 32-byte SHA-256 hash |
 
 #### SignatureType Values
